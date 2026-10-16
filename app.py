@@ -65,6 +65,7 @@ with st.expander("📌 အဆင့် (၁) - AI တွင် ပုံမျ�
   "weighing_percent": 0.1,
   "per_bag_gross": 25.05,
   "per_bag_tare": 0.05,
+  "additional_bags": null,
   "weighing_data": [
     {"page": 1, "bags": 192, "gross_weight": 4809.6}
   ],
@@ -99,10 +100,11 @@ with st.expander("📌 အဆင့် (၁) - AI တွင် ပုံမျ�
 Important Rules for Extraction:
 1. Container Number (`no`): Always format as 4 English letters, followed by a SINGLE SPACE, followed by the digits (e.g., if handwritten as "BMOU- 1657789" or "CSNU.2702460", output strictly as "BMOU 1657789" or "CSNU 2702460").
 2. Container Seal Number (`seal`): Seal numbers contain DIGITS ONLY (0-9). If a handwritten character looks like 'S', interpret it as '5'. If 'O', interpret as '0'. If 'I' or 'l', interpret as '1'. If 'B', interpret as '8'. Output digits only.
-3. Format Date as DD/MM/YYYY.
-4. Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
-5. `slings` array can have up to 10 numbers representing each sling column in Tally Form.
-6. `vgm_other_headers` must match the exact 3 column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the 3 corresponding weights."""
+3. Additional Bags (`additional_bags`): Extract the value from 'Additional Bags :' in the Weight List (Summary) image. If it is blank or '-', set to `null`.
+4. Format Date as DD/MM/YYYY.
+5. Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
+6. `slings` array can have up to 10 numbers representing each sling column in Tally Form.
+7. `vgm_other_headers` must match the exact column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the corresponding weights."""
     
     st.code(ai_prompt, language="text")
 
@@ -176,6 +178,17 @@ def set_cell_value(ws, cell_coord, value):
     else:
         cell.value = value
 
+def set_cell_numfmt(ws, cell_coord, fmt):
+    cell = ws[cell_coord]
+    if isinstance(cell, openpyxl.cell.cell.MergedCell):
+        for merged_range in ws.merged_cells.ranges:
+            if cell_coord in merged_range:
+                top_left_cell = ws.cell(row=merged_range.min_row, column=merged_range.min_col)
+                top_left_cell.number_format = fmt
+                return
+    else:
+        cell.number_format = fmt
+
 def generate_excel(template_stream, data):
     wb = openpyxl.load_workbook(template_stream)
     
@@ -197,6 +210,8 @@ def generate_excel(template_stream, data):
     weighing_percent = data.get("weighing_percent", 0.1)
     per_bag_gross = data.get("per_bag_gross", 0)
     per_bag_tare = data.get("per_bag_tare", 0)
+    raw_add_bags = data.get("additional_bags", None)
+    additional_bags = float(raw_add_bags) if (raw_add_bags is not None and str(raw_add_bags).strip() not in ["", "-"]) else None
     weighing_data = data.get("weighing_data", [])
     vgm_headers = data.get("vgm_other_headers", ["Seal", "SECCO", "Paper"])
     containers = data.get("containers", [])
@@ -255,53 +270,67 @@ def generate_excel(template_stream, data):
             set_cell_value(ws_weight, f'{col}{r}', None)
             
     set_cell_value(ws_weight, 'G13', per_bag_tare)
+    set_cell_value(ws_weight, 'G15', additional_bags)
     
-    # 3. TALLY FORM (Preserve Column B Master Link & Column M Formula)
+    for coord in ['G12', 'G13', 'G14', 'I12', 'I13', 'I14', 'I15', 'I16']:
+        set_cell_numfmt(ws_weight, coord, '0.000')
+    
+    # 3. TALLY FORM (Blank out unused rows completely)
     ws_tally = wb['TALLY FORM']
     start_row_tally = 11
     for i, c in enumerate(containers):
         row = start_row_tally + i
+        s_row = 21 + i
+        set_cell_value(ws_tally, f'B{row}', f"='STUFFING REPORT'!B{s_row}")
         slings = c.get("slings", [])
-        for col_idx in range(10): # C to L only
+        for col_idx in range(10):
             col_letter = get_column_letter(3 + col_idx)
             val = slings[col_idx] if col_idx < len(slings) else None
             set_cell_value(ws_tally, f'{col_letter}{row}', val)
+        set_cell_value(ws_tally, f'M{row}', f"=SUM(C{row}:L{row})")
             
     for r in range(start_row_tally + len(containers), 51):
-        for col in range(3, 13): # Clear C to L only; keep B & M formulas intact
+        for col in range(2, 15): # Clear B through N completely
             set_cell_value(ws_tally, f'{get_column_letter(col)}{r}', None)
             
     for r in range(start_row_tally, 51):
         ws_tally.row_dimensions[r].hidden = (r >= start_row_tally + visible_count)
         
-    # 4. VGM REPORT (Preserve Column B Master Link & E, L Formulas)
+    # 4. VGM REPORT (Blank out unused rows completely)
     ws_vgm = wb['VGM REPORT']
     set_cell_value(ws_vgm, 'J5', date_slash)
     set_cell_value(ws_vgm, 'L5', start_time)
     
-    for idx, h_Col in enumerate(['F9', 'G9', 'H9']):
+    for idx, h_Col in enumerate(['F9', 'G9', 'H9', 'I9']):
         if idx < len(vgm_headers):
             set_cell_value(ws_vgm, h_Col, vgm_headers[idx])
+        elif idx == 3:
+            set_cell_value(ws_vgm, h_Col, None)
             
     start_row_vgm = 10
     for i, c in enumerate(containers):
         row = start_row_vgm + i
-        set_cell_value(ws_vgm, f'C{row}', c.get("bags", 0))
+        s_row = 21 + i
+        set_cell_value(ws_vgm, f'B{row}', f"='STUFFING REPORT'!B{s_row}")
+        set_cell_value(ws_vgm, f'C{row}', f"='STUFFING REPORT'!F{s_row}")
         set_cell_value(ws_vgm, f'D{row}', per_bag_gross)
+        set_cell_value(ws_vgm, f'E{row}', f"=C{row}*D{row}")
         vgm_others = c.get("vgm_others", [0, 0, 0])
         set_cell_value(ws_vgm, f'F{row}', vgm_others[0] if len(vgm_others) > 0 else None)
         set_cell_value(ws_vgm, f'G{row}', vgm_others[1] if len(vgm_others) > 1 else None)
         set_cell_value(ws_vgm, f'H{row}', vgm_others[2] if len(vgm_others) > 2 else None)
+        set_cell_value(ws_vgm, f'I{row}', vgm_others[3] if len(vgm_others) > 3 else None)
         set_cell_value(ws_vgm, f'K{row}', c.get("ctn_tare_kg", 0))
+        set_cell_value(ws_vgm, f'L{row}', f"=SUM(E{row}:K{row})")
         
     for r in range(start_row_vgm + len(containers), 50):
-        for col in ['C', 'D', 'F', 'G', 'H', 'I', 'J', 'K']: # Keep B, E, L formulas intact
+        for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']:
             set_cell_value(ws_vgm, f'{col}{r}', None)
             
     for r in range(start_row_vgm, 50):
         ws_vgm.row_dimensions[r].hidden = (r >= start_row_vgm + visible_count)
         
-    # 5. CTN SURVEY REPORT (Preserve Column B Master Link)
+    # 5. CTN SURVEY REPORT (Blank out unused rows completely)
     ws_survey = wb['CTN SURVEY REPORT']
     set_cell_value(ws_survey, 'I5', survey_loc)
     set_cell_value(ws_survey, 'I6', date_slash)
@@ -309,6 +338,8 @@ def generate_excel(template_stream, data):
     start_row_survey = 9
     for i, c in enumerate(containers):
         row = start_row_survey + i
+        s_row = 21 + i
+        set_cell_value(ws_survey, f'B{row}', f"='STUFFING REPORT'!B{s_row}")
         set_cell_value(ws_survey, f'C{row}', str(c.get("hole_dented", "No")).title())
         set_cell_value(ws_survey, f'D{row}', str(c.get("floor_type", "Wood")).title())
         set_cell_value(ws_survey, f'E{row}', str(c.get("floor_damaged", "No")).title())
@@ -321,7 +352,7 @@ def generate_excel(template_stream, data):
         set_cell_value(ws_survey, f'L{row}', str(c.get("suitable", "Yes")).title())
         
     for r in range(start_row_survey + len(containers), 49):
-        for col in ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']: # Keep Column B formula intact
+        for col in ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']:
             set_cell_value(ws_survey, f'{col}{r}', None)
             
     for r in range(start_row_survey, 49):
