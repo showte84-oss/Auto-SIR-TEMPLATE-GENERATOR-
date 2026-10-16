@@ -5,16 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SGS SIR Report Automation</title>
     <!-- Tailwind CSS for modern UI -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
     <!-- ExcelJS & FileSaver for Excel manipulation in browser -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="[https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js](https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js)"></script>
+    <script src="[https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js](https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js)"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Inter:wght@400;600;700&display=swap');
+        @import url('[https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Inter:wght@400;600;700&display=swap](https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Inter:wght@400;600;700&display=swap)');
         body { font-family: 'Inter', 'Padauk', sans-serif; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-800">
+<body class="bg-slate-50 min-h-screen text-slate-800 pb-16 relative">
 
     <!-- Header Navbar -->
     <header class="bg-indigo-900 text-white shadow-md">
@@ -106,9 +106,9 @@ Important Rules for Extraction:
             </div>
         </div>
 
-        <!-- Step 2: Input & Generate -->
+        <!-- Step 2: Input, Filename & Generate -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-            <h2 class="font-bold text-lg text-slate-700 border-b pb-3">📌 အဆင့် (၂) - JSON Data ထည့်သွင်းပြီး Excel ထုတ်ယူပါ</h2>
+            <h2 class="font-bold text-lg text-slate-700 border-b pb-3">📌 အဆင့် (၂) - JSON Data နှင့် File Name ထည့်သွင်းပြီး Excel ထုတ်ယူပါ</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- Template Status / Optional Upload -->
@@ -123,24 +123,38 @@ Important Rules for Extraction:
                 <!-- JSON Textarea -->
                 <div class="md:col-span-2 space-y-2">
                     <label class="block text-sm font-bold text-slate-700">📝 AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -</label>
-                    <textarea id="jsonInput" rows="8" placeholder='{\n  "job_ref": "2108339",\n  ...\n}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                    <textarea id="jsonInput" oninput="autoFillFileName()" rows="8" placeholder='{\n  "job_ref": "2108339",\n  ...\n}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
                 </div>
+            </div>
+
+            <!-- Pre-Generate Editable Filename & Action Button -->
+            <div class="bg-indigo-50/70 border border-indigo-100 p-5 rounded-xl flex flex-col md:flex-row items-stretch md:items-end justify-between gap-4">
+                <div class="flex-1 space-y-1.5">
+                    <label class="block text-sm font-bold text-slate-700">✏️ File Name (JSON ထည့်လိုက်သည်နှင့် Auto ပေါ်လာပါမည်၊ မကြိုက်လျှင် စိတ်ကြိုက်ပြင်နိုင်ပါသည်) -</label>
+                    <div class="flex items-center">
+                        <input type="text" id="customFileName" oninput="userEditedName = true" class="w-full p-2.5 text-sm font-semibold text-slate-800 bg-white border border-slate-300 rounded-l-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" value="SIR JOB NO" placeholder="SIR JOB NO 2108339">
+                        <span class="bg-slate-200 text-slate-700 font-mono text-sm font-bold px-3.5 py-2.5 border border-l-0 border-slate-300 rounded-r-lg">.xlsx</span>
+                    </div>
+                </div>
+                <button onclick="processExcel()" id="generateBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition flex items-center justify-center space-x-2 shrink-0">
+                    <span>🚀 Generate & Download Excel</span>
+                </button>
             </div>
 
             <!-- Status Alert -->
             <div id="statusMsg" class="hidden p-4 rounded-lg text-sm font-medium"></div>
-
-            <!-- Action Button -->
-            <div class="flex justify-end">
-                <button onclick="processExcel()" id="generateBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition flex items-center space-x-2">
-                    <span>🚀 Generate & Download Excel</span>
-                </button>
-            </div>
         </div>
 
     </main>
 
+    <!-- Watermark at Bottom Center -->
+    <footer class="fixed bottom-3 left-0 right-0 text-center pointer-events-none select-none z-50">
+        <span class="text-xs font-bold tracking-widest text-slate-400/70 uppercase">By KNA</span>
+    </footer>
+
     <script>
+        let userEditedName = false;
+
         function togglePrompt() {
             const sec = document.getElementById('promptSection');
             sec.classList.toggle('hidden');
@@ -161,12 +175,23 @@ Important Rules for Extraction:
             el.classList.remove('hidden');
         }
 
+        // Auto-extract job_ref as soon as user pastes JSON
+        function autoFillFileName() {
+            const raw = document.getElementById('jsonInput').value;
+            const match = raw.match(/"job_ref"\s*:\s*"([^"]+)"/);
+            if (match && match[1]) {
+                const nameInput = document.getElementById('customFileName');
+                if (!userEditedName || nameInput.value.trim() === "" || nameInput.value.startsWith("SIR JOB NO")) {
+                    nameInput.value = `SIR JOB NO ${match[1].trim()}`;
+                }
+            }
+        }
+
         function toTitleCase(str) {
             if (!str) return "";
             return str.toString().toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         }
 
-        // Safely write value to cell or master of merged cell
         function setCellVal(ws, addr, val) {
             const cell = ws.getCell(addr);
             if (cell.isMerged && cell.master) {
@@ -214,7 +239,7 @@ Important Rules for Extraction:
                 const wb = new ExcelJS.Workbook();
                 await wb.xlsx.load(arrayBuffer);
 
-                const jobRef = String(data.job_ref || "");
+                const jobRef = String(data.job_ref || "").trim();
                 const dateSlash = data.date || "";
                 const startTime = data.start_time || "";
                 const shipper = data.shipper || "";
@@ -375,9 +400,20 @@ Important Rules for Extraction:
                     wsSurvey.getRow(r).hidden = true;
                 }
 
+                // Determine Final File Name from Input Box
+                let fileName = document.getElementById('customFileName').value.trim();
+                if (!fileName || fileName === "SIR JOB NO") {
+                    fileName = jobRef ? `SIR JOB NO ${jobRef}` : "SIR JOB NO";
+                    document.getElementById('customFileName').value = fileName;
+                }
+                if (!fileName.toLowerCase().endsWith('.xlsx')) {
+                    fileName += '.xlsx';
+                }
+
                 const outBuffer = await wb.xlsx.writeBuffer();
-                const fileName = `SIR_JOB_NO_${jobRef}.xlsx`;
-                saveAs(new Blob([outBuffer]), fileName);
+                const blob = new Blob([outBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+                saveAs(blob, fileName);
+                
                 showStatus(`🎉 ${fileName} ကို အောင်မြင်စွာ Download ရယူပြီးပါပြီ!`);
 
             } catch (err) {
