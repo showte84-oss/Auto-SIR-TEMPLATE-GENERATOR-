@@ -7,7 +7,7 @@ import os
 
 st.set_page_config(page_title="SGS SIR Report Automation", page_icon="📊", layout="wide")
 
-# အပေါ်ညာဘက်ထောင့်က GitHub icon, Fork, Menu တန်းနှင့် အောက်ခြေ Footer တို့ကို ဖျောက်ရန်
+# အပေါ်ညာဘက်ထောင့်က GitHub icon, Fork, Menu တန်းနှင့် အောက်ခြေ Footer တို့ကို ဖျောက်ရန် နှင့် Watermark ထည့်ရန်
 hide_streamlit_style = """
 <style>
 #MainMenu {visibility: hidden;}
@@ -15,7 +15,21 @@ header {visibility: hidden;}
 footer {visibility: hidden;}
 .stDeployButton {display: none;}
 [data-testid="stToolbar"] {visibility: hidden !important;}
+.watermark {
+    position: fixed;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0.45;
+    font-size: 14px;
+    font-weight: 700;
+    color: #475569;
+    letter-spacing: 2px;
+    pointer-events: none;
+    z-index: 9999;
+}
 </style>
+<div class="watermark">By KNA</div>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
@@ -131,7 +145,7 @@ def set_cell_value(ws, cell_coord, value):
 def generate_excel(template_stream, data):
     wb = openpyxl.load_workbook(template_stream)
     
-    job_ref = str(data.get("job_ref", ""))
+    job_ref = str(data.get("job_ref", "")).strip()
     date_slash = data.get("date", "")
     start_time = data.get("start_time", "")
     shipper = data.get("shipper", "")
@@ -304,7 +318,8 @@ def generate_excel(template_stream, data):
     output_stream = io.BytesIO()
     wb.save(output_stream)
     output_stream.seek(0)
-    return output_stream, f"SIR_JOB_NO_{job_ref}.xlsx"
+    default_base_name = f"SIR JOB NO {job_ref}" if job_ref else "SIR JOB NO"
+    return output_stream.getvalue(), default_base_name
 
 # Generate Button
 if st.button("🚀 Generate Excel File", type="primary"):
@@ -312,7 +327,6 @@ if st.button("🚀 Generate Excel File", type="primary"):
         st.error("⚠️ ကျေးဇူးပြု၍ JSON Data ကို အရင်ထည့်သွင်းပေးပါ။")
     else:
         try:
-            # Clean markdown codeblock if pasted
             cleaned_json = json_input.strip()
             if cleaned_json.startswith("```"):
                 cleaned_json = cleaned_json.split("\n", 1)[1]
@@ -320,21 +334,43 @@ if st.button("🚀 Generate Excel File", type="primary"):
                     cleaned_json = cleaned_json.rsplit("```", 1)[0]
             
             parsed_data = json.loads(cleaned_json)
-            
             template_source = uploaded_template if uploaded_template else (default_template if use_default else None)
             
             if not template_source:
                 st.error("⚠️ `(40 FCL)SIR TEMPLATE.xlsx` ဖိုင်ကို Upload တင်ပေးပါ။")
             else:
-                excel_bytes, filename = generate_excel(template_source, parsed_data)
-                st.success(f"🎉 `{filename}` ဖိုင်ကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ!")
-                st.download_button(
-                    label=f"📥 Download {filename}",
-                    data=excel_bytes,
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                excel_bytes, default_base_name = generate_excel(template_source, parsed_data)
+                st.session_state['excel_bytes'] = excel_bytes
+                st.session_state['custom_filename_input'] = default_base_name
+                st.success("🎉 Excel ဖိုင်ကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ! အောက်တွင် File Name စိတ်ကြိုက်ပြင်ဆင်၍ Download ရယူနိုင်ပါသည်။")
         except json.JSONDecodeError as e:
             st.error(f"❌ JSON Format မှားယွင်းနေပါသည်: {e}")
         except Exception as e:
             st.error(f"❌ အမှားအယွင်းတစ်ခု ဖြစ်ပေါ်နေပါသည်: {e}")
+
+# Show customizable filename and download button if generated
+if 'excel_bytes' in st.session_state:
+    st.markdown("---")
+    st.subheader("📥 Download Excel File")
+    f_col1, f_col2 = st.columns([2, 1])
+    with f_col1:
+        custom_name = st.text_input(
+            "File Name ကို စိတ်ကြိုက်ပြင်ဆင်နိုင်ပါသည် (`.xlsx` ထည့်ရန်မလိုပါ၊ Auto ထည့်ပေးပါမည်) -",
+            key="custom_filename_input"
+        )
+    clean_name = custom_name.strip()
+    if clean_name.lower().endswith(".xlsx"):
+        final_filename = clean_name
+    else:
+        final_filename = f"{clean_name}.xlsx"
+        
+    with f_col2:
+        st.write("")
+        st.write("")
+        st.download_button(
+            label=f"📥 Download ({final_filename})",
+            data=st.session_state['excel_bytes'],
+            file_name=final_filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary"
+        )
