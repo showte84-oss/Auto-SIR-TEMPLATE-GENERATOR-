@@ -81,6 +81,7 @@ with st.expander("📌 အဆင့် (၁) - AI တွင် ပုံမျ�
       "tare_mt": 0.048,
       "seal": "444072",
       "slings": [100, 100, 100, 100, 100, 100, 100, 100, 100, 60],
+      "tally_additional_bags": null,
       "vgm_others": [0.012, 4.0, 10.0],
       "ctn_tare_kg": 2150,
       "hole_dented": "No",
@@ -100,7 +101,7 @@ with st.expander("📌 အဆင့် (၁) - AI တွင် ပုံမျ�
 Important Rules for Extraction:
 1. Container Number (`no`): Always format as 4 English letters, followed by a SINGLE SPACE, followed by the digits (e.g., if handwritten as "BMOU- 1657789" or "CSNU.2702460", output strictly as "BMOU 1657789" or "CSNU 2702460").
 2. Container Seal Number (`seal`): Seal numbers contain DIGITS ONLY (0-9). If a handwritten character looks like 'S', interpret it as '5'. If 'O', interpret as '0'. If 'I' or 'l', interpret as '1'. If 'B', interpret as '8'. Output digits only.
-3. Additional Bags (`additional_bags`): Extract the value from 'Additional Bags :' in the Weight List (Summary) image. If it is blank or '-', set to `null`.
+3. Additional Kgs / Bags (`additional_bags` & `tally_additional_bags`): Extract the exact number written in 'Additional Bags :' (Kgs) from the Weight List (Summary) image into `additional_bags`. If Tally Form has additional bags per container, put in `tally_additional_bags`. If blank or '-', set to `null`.
 4. Format Date as DD/MM/YYYY.
 5. Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
 6. `slings` array can have up to 10 numbers representing each sling column in Tally Form.
@@ -178,17 +179,6 @@ def set_cell_value(ws, cell_coord, value):
     else:
         cell.value = value
 
-def set_cell_numfmt(ws, cell_coord, fmt):
-    cell = ws[cell_coord]
-    if isinstance(cell, openpyxl.cell.cell.MergedCell):
-        for merged_range in ws.merged_cells.ranges:
-            if cell_coord in merged_range:
-                top_left_cell = ws.cell(row=merged_range.min_row, column=merged_range.min_col)
-                top_left_cell.number_format = fmt
-                return
-    else:
-        cell.number_format = fmt
-
 def generate_excel(template_stream, data):
     wb = openpyxl.load_workbook(template_stream)
     
@@ -210,7 +200,7 @@ def generate_excel(template_stream, data):
     weighing_percent = data.get("weighing_percent", 0.1)
     per_bag_gross = data.get("per_bag_gross", 0)
     per_bag_tare = data.get("per_bag_tare", 0)
-    raw_add_bags = data.get("additional_bags", None)
+    raw_add_bags = data.get("additional_bags", data.get("additional_kgs", None))
     additional_bags = float(raw_add_bags) if (raw_add_bags is not None and str(raw_add_bags).strip() not in ["", "-"]) else None
     weighing_data = data.get("weighing_data", [])
     vgm_headers = data.get("vgm_other_headers", ["Seal", "SECCO", "Paper"])
@@ -269,11 +259,11 @@ def generate_excel(template_stream, data):
         for col in ['A', 'B', 'C', 'D']:
             set_cell_value(ws_weight, f'{col}{r}', None)
             
+    # Use ROUND(..., 3) formula only on G12 so no shared number format styles are altered
+    set_cell_value(ws_weight, 'G12', '=ROUND(C27/B27, 3)')
     set_cell_value(ws_weight, 'G13', per_bag_tare)
+    set_cell_value(ws_weight, 'G14', '=ROUND(G12-G13, 3)')
     set_cell_value(ws_weight, 'G15', additional_bags)
-    
-    for coord in ['G12', 'G13', 'G14', 'I12', 'I13', 'I14', 'I15', 'I16']:
-        set_cell_numfmt(ws_weight, coord, '0.000')
     
     # 3. TALLY FORM (Blank out unused rows completely)
     ws_tally = wb['TALLY FORM']
@@ -288,6 +278,8 @@ def generate_excel(template_stream, data):
             val = slings[col_idx] if col_idx < len(slings) else None
             set_cell_value(ws_tally, f'{col_letter}{row}', val)
         set_cell_value(ws_tally, f'M{row}', f"=SUM(C{row}:L{row})")
+        t_add = c.get("tally_additional_bags", None)
+        set_cell_value(ws_tally, f'N{row}', float(t_add) if (t_add is not None and str(t_add).strip() not in ["", "-"]) else None)
             
     for r in range(start_row_tally + len(containers), 51):
         for col in range(2, 15): # Clear B through N completely
