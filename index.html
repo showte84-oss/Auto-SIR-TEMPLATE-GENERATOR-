@@ -95,10 +95,12 @@
 }
 
 Important Rules for Extraction:
-- Format Date as DD/MM/YYYY.
-- Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
-- `slings` array can have up to 10 numbers representing each sling column in Tally Form.
-- `vgm_other_headers` must match the exact 3 column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the 3 corresponding weights.</textarea>
+1. Container Number (`no`): Always format as 4 English letters, followed by a SINGLE SPACE, followed by the digits (e.g., if handwritten as "BMOU- 1657789" or "CSNU.2702460", output strictly as "BMOU 1657789" or "CSNU 2702460").
+2. Container Seal Number (`seal`): Seal numbers contain DIGITS ONLY (0-9). If a handwritten character looks like 'S', interpret it as '5'. If 'O', interpret as '0'. If 'I' or 'l', interpret as '1'. If 'B', interpret as '8'. Output digits only.
+3. Format Date as DD/MM/YYYY.
+4. Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
+5. `slings` array can have up to 10 numbers representing each sling column in Tally Form.
+6. `vgm_other_headers` must match the exact 3 column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the 3 corresponding weights.</textarea>
                     <button onclick="copyPrompt()" id="copyBtn" class="absolute top-3 right-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-md shadow">
                         📋 Copy Prompt
                     </button>
@@ -123,10 +125,7 @@ Important Rules for Extraction:
                 <!-- JSON Textarea -->
                 <div class="md:col-span-2 space-y-2">
                     <label class="block text-sm font-bold text-slate-700">📝 AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -</label>
-                    <textarea id="jsonInput" oninput="autoFillFileName()" rows="8" placeholder='{
-  "job_ref": "2108339",
-  ...
-}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                    <textarea id="jsonInput" oninput="autoFillFileName()" rows="8" placeholder='{\n  "job_ref": "2108339",\n  ...\n}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
                 </div>
             </div>
 
@@ -178,7 +177,6 @@ Important Rules for Extraction:
             el.classList.remove('hidden');
         }
 
-        // Auto-extract job_ref as soon as user pastes JSON
         function autoFillFileName() {
             const raw = document.getElementById('jsonInput').value;
             const match = raw.match(/"job_ref"\s*:\s*"([^"]+)"/);
@@ -195,6 +193,27 @@ Important Rules for Extraction:
             return str.toString().toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         }
 
+        // Format Container No: "BMOU- 1657789" or "CSNU.2702460" -> "BMOU 1657789"
+        function formatContainerNo(str) {
+            if (!str) return "";
+            const cleaned = str.toString().toUpperCase().trim();
+            const match = cleaned.match(/^([A-Z]+)[^A-Z0-9]*([0-9]+)$/);
+            if (match) {
+                return `${match[1]} ${match[2]}`;
+            }
+            return cleaned.replace(/[^A-Z0-9]+/g, ' ').trim();
+        }
+
+        // Clean Seal No: Convert lookalike letters (S->5, O->0, I/l->1, B->8, Z->2) and keep digits only
+        function cleanSealNo(str) {
+            if (str === null || str === undefined) return "";
+            const map = { 'S': '5', 's': '5', 'O': '0', 'o': '0', 'I': '1', 'l': '1', 'i': '1', 'B': '8', 'Z': '2', 'z': '2', 'G': '6', 'b': '6' };
+            let res = str.toString().split('').map(ch => map[ch] || ch).join('');
+            let digitsOnly = res.replace(/[^0-9]/g, '');
+            return digitsOnly || res.trim();
+        }
+
+        // Write value to cell ONLY if we intend to overwrite; preserves formulas in untouched cells
         function setCellVal(ws, addr, val) {
             const cell = ws.getCell(addr);
             if (cell.isMerged && cell.master) {
@@ -242,6 +261,9 @@ Important Rules for Extraction:
                 const wb = new ExcelJS.Workbook();
                 await wb.xlsx.load(arrayBuffer);
 
+                // Force Excel to recalculate all linked formulas when opened
+                wb.calcProperties.fullCalcOnLoad = true;
+
                 const jobRef = String(data.job_ref || "").trim();
                 const dateSlash = data.date || "";
                 const startTime = data.start_time || "";
@@ -263,8 +285,11 @@ Important Rules for Extraction:
                 const weighingData = data.weighing_data || [];
                 const vgmHeaders = data.vgm_other_headers || ["Seal", "SECCO", "Paper"];
                 const containers = data.containers || [];
+                const visibleCount = Math.max(10, containers.length);
 
-                // 1. STUFFING REPORT
+                // =========================================================
+                // 1. STUFFING REPORT (MASTER PAGE - Write Container Nos here)
+                // =========================================================
                 const wsStuff = wb.getWorksheet('STUFFING REPORT');
                 setCellVal(wsStuff, 'E5', jobRef);
                 setCellVal(wsStuff, 'F6', dateSlash);
@@ -281,31 +306,30 @@ Important Rules for Extraction:
 
                 containers.forEach((c, i) => {
                     const r = 21 + i;
-                    setCellVal(wsStuff, `B${r}`, c.no || "");
+                    setCellVal(wsStuff, `B${r}`, formatContainerNo(c.no));
                     setCellVal(wsStuff, `C${r}`, c.condition || "SOUND");
                     setCellVal(wsStuff, `D${r}`, c.commence || "");
                     setCellVal(wsStuff, `E${r}`, c.complete || "");
                     setCellVal(wsStuff, `F${r}`, c.bags || 0);
                     setCellVal(wsStuff, `G${r}`, c.gross_mt || 0);
                     setCellVal(wsStuff, `H${r}`, c.tare_mt || 0);
-                    setCellVal(wsStuff, `I${r}`, String(c.seal || ""));
+                    setCellVal(wsStuff, `I${r}`, cleanSealNo(c.seal));
                 });
 
+                // Clear unused rows in Master Page (including Column B so linked sheets show blank)
                 for (let r = 21 + containers.length; r <= 60; r++) {
                     ['B','C','D','E','F','G','H','I'].forEach(col => setCellVal(wsStuff, `${col}${r}`, null));
                 }
-                for (let r = 21 + Math.max(10, containers.length); r <= 60; r++) {
-                    wsStuff.getRow(r).hidden = true;
+                for (let r = 21; r <= 60; r++) {
+                    wsStuff.getRow(r).hidden = (r >= 21 + visibleCount);
                 }
                 setCellVal(wsStuff, 'C68', testWeight);
                 setCellVal(wsStuff, 'G68', testWeightNo);
 
+                // =========================================================
                 // 2. WEIGHT LIST (SUMMARY)
+                // =========================================================
                 const wsWeight = wb.getWorksheet('WEIGHT LIST (SUMMARY)');
-                setCellVal(wsWeight, 'C4', jobRef);
-                setCellVal(wsWeight, 'C5', shipper);
-                setCellVal(wsWeight, 'C6', commodity);
-                setCellVal(wsWeight, 'C7', poi);
                 setCellVal(wsWeight, 'C8', weighingPercent);
 
                 weighingData.forEach((d, i) => {
@@ -320,34 +344,31 @@ Important Rules for Extraction:
                 }
                 setCellVal(wsWeight, 'G13', perBagTare);
 
-                // 3. TALLY FORM
+                // =========================================================
+                // 3. TALLY FORM (DO NOT touch Column B - preserve Master link!)
+                // =========================================================
                 const wsTally = wb.getWorksheet('TALLY FORM');
-                setCellVal(wsTally, 'C4', vessel);
-                setCellVal(wsTally, 'C5', dateSlash);
-                setCellVal(wsTally, 'C6', shipper);
-
                 const slingCols = ['C','D','E','F','G','H','I','J','K','L'];
                 containers.forEach((c, i) => {
                     const r = 11 + i;
-                    setCellVal(wsTally, `B${r}`, c.no || "");
+                    // Column B is NOT overwritten so formula link to Stuffing Report stays intact
                     const slings = c.slings || [];
                     slingCols.forEach((col, idx) => {
                         setCellVal(wsTally, `${col}${r}`, idx < slings.length ? slings[idx] : null);
                     });
                 });
+                // Clear ONLY sling data columns (C to L) for unused rows; leave B and M (formulas) intact
                 for (let r = 11 + containers.length; r <= 50; r++) {
-                    ['B',...slingCols].forEach(col => setCellVal(wsTally, `${col}${r}`, null));
+                    slingCols.forEach(col => setCellVal(wsTally, `${col}${r}`, null));
                 }
-                for (let r = 11 + Math.max(10, containers.length); r <= 50; r++) {
-                    wsTally.getRow(r).hidden = true;
+                for (let r = 11; r <= 50; r++) {
+                    wsTally.getRow(r).hidden = (r >= 11 + visibleCount);
                 }
 
-                // 4. VGM REPORT
+                // =========================================================
+                // 4. VGM REPORT (DO NOT touch Column B, E, L - preserve formulas!)
+                // =========================================================
                 const wsVgm = wb.getWorksheet('VGM REPORT');
-                setCellVal(wsVgm, 'B4', shipper);
-                setCellVal(wsVgm, 'B5', commodity);
-                setCellVal(wsVgm, 'B6', vessel);
-                setCellVal(wsVgm, 'I4', poi);
                 setCellVal(wsVgm, 'J5', dateSlash);
                 setCellVal(wsVgm, 'L5', startTime);
 
@@ -358,7 +379,7 @@ Important Rules for Extraction:
                 containers.forEach((c, i) => {
                     const r = 10 + i;
                     const vo = c.vgm_others || [];
-                    setCellVal(wsVgm, `B${r}`, c.no || "");
+                    // Column B is NOT overwritten (linked to Master Page)
                     setCellVal(wsVgm, `C${r}`, c.bags || 0);
                     setCellVal(wsVgm, `D${r}`, perBagGross);
                     setCellVal(wsVgm, `F${r}`, vo[0] ?? null);
@@ -366,25 +387,24 @@ Important Rules for Extraction:
                     setCellVal(wsVgm, `H${r}`, vo[2] ?? null);
                     setCellVal(wsVgm, `K${r}`, c.ctn_tare_kg || 0);
                 });
+                // Clear ONLY data columns (C, D, F, G, H, I, J, K) for unused rows; keep B, E, L formulas intact
                 for (let r = 10 + containers.length; r <= 49; r++) {
-                    ['B','C','D','E','F','G','H','I','J','K','L'].forEach(col => setCellVal(wsVgm, `${col}${r}`, null));
+                    ['C','D','F','G','H','I','J','K'].forEach(col => setCellVal(wsVgm, `${col}${r}`, null));
                 }
-                for (let r = 10 + Math.max(10, containers.length); r <= 49; r++) {
-                    wsVgm.getRow(r).hidden = true;
+                for (let r = 10; r <= 49; r++) {
+                    wsVgm.getRow(r).hidden = (r >= 10 + visibleCount);
                 }
 
-                // 5. CTN SURVEY REPORT
+                // =========================================================
+                // 5. CTN SURVEY REPORT (DO NOT touch Column B - preserve Master link!)
+                // =========================================================
                 const wsSurvey = wb.getWorksheet('CTN SURVEY REPORT');
-                setCellVal(wsSurvey, 'B4', shipper);
-                setCellVal(wsSurvey, 'B5', commodity);
-                setCellVal(wsSurvey, 'B6', quantity);
-                setCellVal(wsSurvey, 'I4', jobRef);
                 setCellVal(wsSurvey, 'I5', surveyLoc);
                 setCellVal(wsSurvey, 'I6', dateSlash);
 
                 containers.forEach((c, i) => {
                     const r = 9 + i;
-                    setCellVal(wsSurvey, `B${r}`, c.no || "");
+                    // Column B is NOT overwritten (linked to Master Page)
                     setCellVal(wsSurvey, `C${r}`, toTitleCase(c.hole_dented || "No"));
                     setCellVal(wsSurvey, `D${r}`, toTitleCase(c.floor_type || "Wood"));
                     setCellVal(wsSurvey, `E${r}`, toTitleCase(c.floor_damaged || "No"));
@@ -396,11 +416,12 @@ Important Rules for Extraction:
                     setCellVal(wsSurvey, `K${r}`, toTitleCase(c.type || "Steel"));
                     setCellVal(wsSurvey, `L${r}`, toTitleCase(c.suitable || "Yes"));
                 });
+                // Clear ONLY survey condition columns (C to L) for unused rows; keep Column B formula intact
                 for (let r = 9 + containers.length; r <= 48; r++) {
-                    ['B','C','D','E','F','G','H','I','J','K','L'].forEach(col => setCellVal(wsSurvey, `${col}${r}`, null));
+                    ['C','D','E','F','G','H','I','J','K','L'].forEach(col => setCellVal(wsSurvey, `${col}${r}`, null));
                 }
-                for (let r = 9 + Math.max(10, containers.length); r <= 48; r++) {
-                    wsSurvey.getRow(r).hidden = true;
+                for (let r = 9; r <= 48; r++) {
+                    wsSurvey.getRow(r).hidden = (r >= 9 + visibleCount);
                 }
 
                 // Determine Final File Name from Input Box
