@@ -102,10 +102,7 @@ with col2:
     json_input = st.text_area(
         "AI မှ ရရှိလာသော JSON Code ကို ဤနေရာတွင် Paste ချပါ -",
         height=280,
-        placeholder='{
-  "job_ref": "2108339",
-  ...
-}'
+        placeholder='{"job_ref": "2108339", ...}'
     )
 
 def set_cell_value(ws, cell_coord, value):
