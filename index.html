@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGS SIR Report Automation</title>
+    <!-- Tailwind CSS for modern UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ExcelJS & FileSaver for Excel manipulation in browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', 'Padauk', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <!-- Header Navbar -->
+    <header class="bg-indigo-900 text-white shadow-md">
+        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">📊</span>
+                <h1 class="text-xl font-bold tracking-wide">SGS SIR Report Generator</h1>
+            </div>
+            <span class="text-xs bg-indigo-700 px-3 py-1 rounded-full font-medium">Auto Excel System</span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
+
+        <!-- Step 1: AI Prompt Box -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <button onclick="togglePrompt()" class="w-full px-6 py-4 text-left bg-slate-100 hover:bg-slate-200 transition flex justify-between items-center">
+                <span class="font-bold text-slate-700">📌 အဆင့် (၁) - AI တွင် ပုံများဖတ်ရန် Prompt ယူပါ (နှိပ်၍ဖွင့်/ပိတ်ပါ)</span>
+                <span id="toggleIcon" class="text-slate-500 font-bold">▼</span>
+            </button>
+            <div id="promptSection" class="p-6 space-y-4 border-t border-slate-200 hidden">
+                <p class="text-sm text-slate-600">
+                    ၁။ <b>Gemini Chat</b> သို့မဟုတ် <b>ChatGPT</b> တွင် SGS Report ပုံ (၅) ပုံကို တင်ပါ။<br>
+                    ၂။ အောက်ပါ <b>Copy Prompt</b> ခလုတ်ကိုနှိပ်ပြီး AI သို့ ပေးပို့လိုက်ပါ။
+                </p>
+                <div class="relative">
+                    <textarea id="aiPromptText" readonly class="w-full h-48 p-3 text-xs font-mono bg-slate-900 text-emerald-400 rounded-lg focus:outline-none">Read the attached SGS inspection report images (Stuffing Report, Weight List, Tally Form, VGM Field Report, and Container Survey Report) and extract all data into the following exact JSON format. Return ONLY valid JSON inside a ```json ``` codeblock without any extra text.
+
+{
+  "job_ref": "2108339",
+  "date": "14/10/2026",
+  "start_time": "08:30",
+  "shipper": "Yangon Agri Food",
+  "buyer": "Kalp Impex",
+  "commodity": "Black Eye Beans (BEB)",
+  "quantity": "48 MTS (1920 Bags)",
+  "packing": "New Single pp Bag",
+  "poi": "No. 122, HTY.1",
+  "survey_location": "No. 122, HTY.1",
+  "vessel": "MV As Susanna",
+  "destination": "Valencia, Spain",
+  "inspector_names": "Kyaw Nyunt, Myint Ko Ko",
+  "test_weight": "10 Kgs",
+  "test_weight_no": "014",
+  "weighing_percent": 0.1,
+  "per_bag_gross": 25.05,
+  "per_bag_tare": 0.05,
+  "weighing_data": [
+    {"page": 1, "bags": 192, "gross_weight": 4809.6}
+  ],
+  "vgm_other_headers": ["Seal", "SECCO", "Paper"],
+  "containers": [
+    {
+      "no": "CAIU 6562141",
+      "condition": "Sound",
+      "commence": "08:30",
+      "complete": "10:00",
+      "bags": 960,
+      "gross_mt": 24.048,
+      "tare_mt": 0.048,
+      "seal": "444072",
+      "slings": [100, 100, 100, 100, 100, 100, 100, 100, 100, 60],
+      "vgm_others": [0.012, 4.0, 10.0],
+      "ctn_tare_kg": 2150,
+      "hole_dented": "No",
+      "floor_type": "Wood",
+      "floor_damaged": "No",
+      "free_odour": "Yes",
+      "free_infestation": "Yes",
+      "clean_dry": "Yes",
+      "color": "Red",
+      "size": "20'",
+      "type": "Steel",
+      "suitable": "Yes"
+    }
+  ]
+}
+
+Important Rules for Extraction:
+- Format Date as DD/MM/YYYY.
+- Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
+- `slings` array can have up to 10 numbers representing each sling column in Tally Form.
+- `vgm_other_headers` must match the exact 3 column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the 3 corresponding weights.</textarea>
+                    <button onclick="copyPrompt()" id="copyBtn" class="absolute top-3 right-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-md shadow">
+                        📋 Copy Prompt
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Input & Generate -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+            <h2 class="font-bold text-lg text-slate-700 border-b pb-3">📌 အဆင့် (၂) - JSON Data ထည့်သွင်းပြီး Excel ထုတ်ယူပါ</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Template Status / Optional Upload -->
+                <div class="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <label class="block text-sm font-bold text-slate-700">📄 Excel Template ဖိုင်</label>
+                    <p class="text-xs text-emerald-600 font-medium">✅ Server ရှိ `(40 FCL)SIR TEMPLATE.xlsx` ကို အလိုအလျောက် အသုံးပြုပါမည်။</p>
+                    <hr class="border-slate-200">
+                    <label class="block text-xs text-slate-500">အကယ်၍ သီးသန့် Template တင်လိုမှသာ ရွေးပါ -</label>
+                    <input type="file" id="templateUpload" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                </div>
+
+                <!-- JSON Textarea -->
+                <div class="md:col-span-2 space-y-2">
+                    <label class="block text-sm font-bold text-slate-700">📝 AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -</label>
+                    <textarea id="jsonInput" rows="8" placeholder='{\n  "job_ref": "2108339",\n  ...\n}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                </div>
+            </div>
+
+            <!-- Status Alert -->
+            <div id="statusMsg" class="hidden p-4 rounded-lg text-sm font-medium"></div>
+
+            <!-- Action Button -->
+            <div class="flex justify-end">
+                <button onclick="processExcel()" id="generateBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition flex items-center space-x-2">
+                    <span>🚀 Generate & Download Excel</span>
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        function togglePrompt() {
+            const sec = document.getElementById('promptSection');
+            sec.classList.toggle('hidden');
+        }
+
+        function copyPrompt() {
+            const text = document.getElementById('aiPromptText').value;
+            navigator.clipboard.writeText(text);
+            const btn = document.getElementById('copyBtn');
+            btn.innerText = "✅ Copied!";
+            setTimeout(() => btn.innerText = "📋 Copy Prompt", 2000);
+        }
+
+        function showStatus(msg, isError = false) {
+            const el = document.getElementById('statusMsg');
+            el.className = `p-4 rounded-lg text-sm font-medium ${isError ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`;
+            el.innerText = msg;
+            el.classList.remove('hidden');
+        }
+
+        function toTitleCase(str) {
+            if (!str) return "";
+            return str.toString().toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        }
+
+        // Safely write value to cell or master of merged cell
+        function setCellVal(ws, addr, val) {
+            const cell = ws.getCell(addr);
+            if (cell.isMerged && cell.master) {
+                cell.master.value = val;
+            } else {
+                cell.value = val;
+            }
+        }
+
+        async function processExcel() {
+            const rawJson = document.getElementById('jsonInput').value.trim();
+            if (!rawJson) {
+                showStatus("⚠️ ကျေးဇူးပြု၍ JSON Data ကို အရင်ထည့်သွင်းပေးပါ။", true);
+                return;
+            }
+
+            let data;
+            try {
+                let cleaned = rawJson;
+                if (cleaned.startsWith("```")) {
+                    cleaned = cleaned.split("\n").slice(1).join("\n");
+                    if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
+                }
+                data = JSON.parse(cleaned.trim());
+            } catch (err) {
+                showStatus("❌ JSON Format မှားယွင်းနေပါသည်: " + err.message, true);
+                return;
+            }
+
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.innerText = "⏳ Generating Excel...";
+
+            try {
+                let arrayBuffer;
+                const fileInput = document.getElementById('templateUpload');
+                if (fileInput.files.length > 0) {
+                    arrayBuffer = await fileInput.files[0].arrayBuffer();
+                } else {
+                    const res = await fetch('(40 FCL)SIR TEMPLATE.xlsx');
+                    if (!res.ok) throw new Error("Template ဖိုင်ကို မတွေ့ရှိပါ။ အပေါ်တွင် Upload တင်ပေးပါ။");
+                    arrayBuffer = await res.arrayBuffer();
+                }
+
+                const wb = new ExcelJS.Workbook();
+                await wb.xlsx.load(arrayBuffer);
+
+                const jobRef = String(data.job_ref || "");
+                const dateSlash = data.date || "";
+                const startTime = data.start_time || "";
+                const shipper = data.shipper || "";
+                const buyer = data.buyer || "";
+                const commodity = data.commodity || "";
+                const quantity = data.quantity || "";
+                const packing = data.packing || "";
+                const poi = data.poi || "";
+                const surveyLoc = data.survey_location || poi;
+                const vessel = data.vessel || "";
+                const destination = data.destination || "";
+                const inspectorNames = data.inspector_names || "";
+                const testWeight = data.test_weight || "10 Kgs";
+                const testWeightNo = data.test_weight_no || "";
+                const weighingPercent = data.weighing_percent ?? 0.1;
+                const perBagGross = data.per_bag_gross || 0;
+                const perBagTare = data.per_bag_tare || 0;
+                const weighingData = data.weighing_data || [];
+                const vgmHeaders = data.vgm_other_headers || ["Seal", "SECCO", "Paper"];
+                const containers = data.containers || [];
+
+                // 1. STUFFING REPORT
+                const wsStuff = wb.getWorksheet('STUFFING REPORT');
+                setCellVal(wsStuff, 'E5', jobRef);
+                setCellVal(wsStuff, 'F6', dateSlash);
+                setCellVal(wsStuff, 'F7', dateSlash);
+                setCellVal(wsStuff, 'E8', shipper);
+                setCellVal(wsStuff, 'E9', buyer);
+                setCellVal(wsStuff, 'E10', commodity);
+                setCellVal(wsStuff, 'E11', quantity);
+                setCellVal(wsStuff, 'E12', packing);
+                setCellVal(wsStuff, 'E13', poi);
+                setCellVal(wsStuff, 'E14', vessel);
+                setCellVal(wsStuff, 'E15', destination);
+                setCellVal(wsStuff, 'E16', inspectorNames);
+
+                containers.forEach((c, i) => {
+                    const r = 21 + i;
+                    setCellVal(wsStuff, `B${r}`, c.no || "");
+                    setCellVal(wsStuff, `C${r}`, c.condition || "SOUND");
+                    setCellVal(wsStuff, `D${r}`, c.commence || "");
+                    setCellVal(wsStuff, `E${r}`, c.complete || "");
+                    setCellVal(wsStuff, `F${r}`, c.bags || 0);
+                    setCellVal(wsStuff, `G${r}`, c.gross_mt || 0);
+                    setCellVal(wsStuff, `H${r}`, c.tare_mt || 0);
+                    setCellVal(wsStuff, `I${r}`, String(c.seal || ""));
+                });
+
+                for (let r = 21 + containers.length; r <= 60; r++) {
+                    ['B','C','D','E','F','G','H','I'].forEach(col => setCellVal(wsStuff, `${col}${r}`, null));
+                }
+                for (let r = 21 + Math.max(10, containers.length); r <= 60; r++) {
+                    wsStuff.getRow(r).hidden = true;
+                }
+                setCellVal(wsStuff, 'C68', testWeight);
+                setCellVal(wsStuff, 'G68', testWeightNo);
+
+                // 2. WEIGHT LIST (SUMMARY)
+                const wsWeight = wb.getWorksheet('WEIGHT LIST (SUMMARY)');
+                setCellVal(wsWeight, 'C4', jobRef);
+                setCellVal(wsWeight, 'C5', shipper);
+                setCellVal(wsWeight, 'C6', commodity);
+                setCellVal(wsWeight, 'C7', poi);
+                setCellVal(wsWeight, 'C8', weighingPercent);
+
+                weighingData.forEach((d, i) => {
+                    const r = 12 + i;
+                    setCellVal(wsWeight, `A${r}`, d.page ?? (i+1));
+                    setCellVal(wsWeight, `B${r}`, d.bags || 0);
+                    setCellVal(wsWeight, `C${r}`, d.gross_weight || 0);
+                    setCellVal(wsWeight, `D${r}`, "kgs");
+                });
+                for (let r = 12 + weighingData.length; r <= 26; r++) {
+                    ['A','B','C','D'].forEach(col => setCellVal(wsWeight, `${col}${r}`, null));
+                }
+                setCellVal(wsWeight, 'G13', perBagTare);
+
+                // 3. TALLY FORM
+                const wsTally = wb.getWorksheet('TALLY FORM');
+                setCellVal(wsTally, 'C4', vessel);
+                setCellVal(wsTally, 'C5', dateSlash);
+                setCellVal(wsTally, 'C6', shipper);
+
+                const slingCols = ['C','D','E','F','G','H','I','J','K','L'];
+                containers.forEach((c, i) => {
+                    const r = 11 + i;
+                    setCellVal(wsTally, `B${r}`, c.no || "");
+                    const slings = c.slings || [];
+                    slingCols.forEach((col, idx) => {
+                        setCellVal(wsTally, `${col}${r}`, idx < slings.length ? slings[idx] : null);
+                    });
+                });
+                for (let r = 11 + containers.length; r <= 50; r++) {
+                    ['B',...slingCols].forEach(col => setCellVal(wsTally, `${col}${r}`, null));
+                }
+                for (let r = 11 + Math.max(10, containers.length); r <= 50; r++) {
+                    wsTally.getRow(r).hidden = true;
+                }
+
+                // 4. VGM REPORT
+                const wsVgm = wb.getWorksheet('VGM REPORT');
+                setCellVal(wsVgm, 'B4', shipper);
+                setCellVal(wsVgm, 'B5', commodity);
+                setCellVal(wsVgm, 'B6', vessel);
+                setCellVal(wsVgm, 'I4', poi);
+                setCellVal(wsVgm, 'J5', dateSlash);
+                setCellVal(wsVgm, 'L5', startTime);
+
+                ['F9','G9','H9'].forEach((addr, idx) => {
+                    if (idx < vgmHeaders.length) setCellVal(wsVgm, addr, vgmHeaders[idx]);
+                });
+
+                containers.forEach((c, i) => {
+                    const r = 10 + i;
+                    const vo = c.vgm_others || [];
+                    setCellVal(wsVgm, `B${r}`, c.no || "");
+                    setCellVal(wsVgm, `C${r}`, c.bags || 0);
+                    setCellVal(wsVgm, `D${r}`, perBagGross);
+                    setCellVal(wsVgm, `F${r}`, vo[0] ?? null);
+                    setCellVal(wsVgm, `G${r}`, vo[1] ?? null);
+                    setCellVal(wsVgm, `H${r}`, vo[2] ?? null);
+                    setCellVal(wsVgm, `K${r}`, c.ctn_tare_kg || 0);
+                });
+                for (let r = 10 + containers.length; r <= 49; r++) {
+                    ['B','C','D','E','F','G','H','I','J','K','L'].forEach(col => setCellVal(wsVgm, `${col}${r}`, null));
+                }
+                for (let r = 10 + Math.max(10, containers.length); r <= 49; r++) {
+                    wsVgm.getRow(r).hidden = true;
+                }
+
+                // 5. CTN SURVEY REPORT
+                const wsSurvey = wb.getWorksheet('CTN SURVEY REPORT');
+                setCellVal(wsSurvey, 'B4', shipper);
+                setCellVal(wsSurvey, 'B5', commodity);
+                setCellVal(wsSurvey, 'B6', quantity);
+                setCellVal(wsSurvey, 'I4', jobRef);
+                setCellVal(wsSurvey, 'I5', surveyLoc);
+                setCellVal(wsSurvey, 'I6', dateSlash);
+
+                containers.forEach((c, i) => {
+                    const r = 9 + i;
+                    setCellVal(wsSurvey, `B${r}`, c.no || "");
+                    setCellVal(wsSurvey, `C${r}`, toTitleCase(c.hole_dented || "No"));
+                    setCellVal(wsSurvey, `D${r}`, toTitleCase(c.floor_type || "Wood"));
+                    setCellVal(wsSurvey, `E${r}`, toTitleCase(c.floor_damaged || "No"));
+                    setCellVal(wsSurvey, `F${r}`, toTitleCase(c.free_odour || "Yes"));
+                    setCellVal(wsSurvey, `G${r}`, toTitleCase(c.free_infestation || "Yes"));
+                    setCellVal(wsSurvey, `H${r}`, toTitleCase(c.clean_dry || "Yes"));
+                    setCellVal(wsSurvey, `I${r}`, toTitleCase(c.color || ""));
+                    setCellVal(wsSurvey, `J${r}`, c.size || "20'");
+                    setCellVal(wsSurvey, `K${r}`, toTitleCase(c.type || "Steel"));
+                    setCellVal(wsSurvey, `L${r}`, toTitleCase(c.suitable || "Yes"));
+                });
+                for (let r = 9 + containers.length; r <= 48; r++) {
+                    ['B','C','D','E','F','G','H','I','J','K','L'].forEach(col => setCellVal(wsSurvey, `${col}${r}`, null));
+                }
+                for (let r = 9 + Math.max(10, containers.length); r <= 48; r++) {
+                    wsSurvey.getRow(r).hidden = true;
+                }
+
+                const outBuffer = await wb.xlsx.writeBuffer();
+                const fileName = `SIR_JOB_NO_${jobRef}.xlsx`;
+                saveAs(new Blob([outBuffer]), fileName);
+                showStatus(`🎉 ${fileName} ကို အောင်မြင်စွာ Download ရယူပြီးပါပြီ!`);
+
+            } catch (err) {
+                showStatus("❌ အမှားအယွင်းဖြစ်ပေါ်နေပါသည်: " + err.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "🚀 Generate & Download Excel";
+            }
+        }
+    </script>
+</body>
+</html>
