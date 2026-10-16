@@ -7,6 +7,18 @@ import os
 
 st.set_page_config(page_title="SGS SIR Report Automation", page_icon="📊", layout="wide")
 
+# အပေါ်ညာဘက်ထောင့်က GitHub icon, Fork, Menu တန်းနှင့် အောက်ခြေ Footer တို့ကို ဖျောက်ရန်
+hide_streamlit_style = """
+<style>
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+.stDeployButton {display: none;}
+[data-testid="stToolbar"] {visibility: hidden !important;}
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 st.title("📊 SGS Inspection Report (SIR) Excel Generator")
 st.markdown("""
 ဤ Web App သည် **API Key မလိုဘဲ** SGS Report ပုံများမှ အချက်အလက်များကို `(40 FCL)SIR TEMPLATE.xlsx` ထဲသို့ အလိုအလျောက် ဖြည့်သွင်းပေးမည့် Hybrid စနစ် ဖြစ်ပါသည်။
