@@ -63,6 +63,7 @@
   "weighing_percent": 0.1,
   "per_bag_gross": 25.05,
   "per_bag_tare": 0.05,
+  "additional_bags": null,
   "weighing_data": [
     {"page": 1, "bags": 192, "gross_weight": 4809.6}
   ],
@@ -97,10 +98,11 @@
 Important Rules for Extraction:
 1. Container Number (`no`): Always format as 4 English letters, followed by a SINGLE SPACE, followed by the digits (e.g., if handwritten as "BMOU- 1657789" or "CSNU.2702460", output strictly as "BMOU 1657789" or "CSNU 2702460").
 2. Container Seal Number (`seal`): Seal numbers contain DIGITS ONLY (0-9). If a handwritten character looks like 'S', interpret it as '5'. If 'O', interpret as '0'. If 'I' or 'l', interpret as '1'. If 'B', interpret as '8'. Output digits only.
-3. Format Date as DD/MM/YYYY.
-4. Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
-5. `slings` array can have up to 10 numbers representing each sling column in Tally Form.
-6. `vgm_other_headers` must match the exact 3 column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the 3 corresponding weights.</textarea>
+3. Additional Bags (`additional_bags`): Extract the value from 'Additional Bags :' in the Weight List (Summary) image. If it is blank or '-', set to `null`.
+4. Format Date as DD/MM/YYYY.
+5. Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
+6. `slings` array can have up to 10 numbers representing each sling column in Tally Form.
+7. `vgm_other_headers` must match the exact column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the corresponding weights.</textarea>
                     <button onclick="copyPrompt()" id="copyBtn" class="absolute top-3 right-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-md shadow">
                         📋 Copy Prompt
                     </button>
@@ -125,7 +127,10 @@ Important Rules for Extraction:
                 <!-- JSON Textarea -->
                 <div class="md:col-span-2 space-y-2">
                     <label class="block text-sm font-bold text-slate-700">📝 AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -</label>
-                    <textarea id="jsonInput" oninput="autoFillFileName()" rows="8" placeholder='{\n  "job_ref": "2108339",\n  ...\n}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                    <textarea id="jsonInput" oninput="autoFillFileName()" rows="8" placeholder='{
+  "job_ref": "2108339",
+  ...
+}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
                 </div>
             </div>
 
@@ -213,13 +218,21 @@ Important Rules for Extraction:
             return digitsOnly || res.trim();
         }
 
-        // Write value to cell ONLY if we intend to overwrite; preserves formulas in untouched cells
         function setCellVal(ws, addr, val) {
             const cell = ws.getCell(addr);
             if (cell.isMerged && cell.master) {
                 cell.master.value = val;
             } else {
                 cell.value = val;
+            }
+        }
+
+        function setCellNumFmt(ws, addr, fmt) {
+            const cell = ws.getCell(addr);
+            if (cell.isMerged && cell.master) {
+                cell.master.numFmt = fmt;
+            } else {
+                cell.numFmt = fmt;
             }
         }
 
@@ -282,13 +295,14 @@ Important Rules for Extraction:
                 const weighingPercent = data.weighing_percent ?? 0.1;
                 const perBagGross = data.per_bag_gross || 0;
                 const perBagTare = data.per_bag_tare || 0;
+                const additionalBags = (data.additional_bags !== undefined && data.additional_bags !== null && data.additional_bags !== "" && data.additional_bags !== "-") ? Number(data.additional_bags) : null;
                 const weighingData = data.weighing_data || [];
                 const vgmHeaders = data.vgm_other_headers || ["Seal", "SECCO", "Paper"];
                 const containers = data.containers || [];
                 const visibleCount = Math.max(10, containers.length);
 
                 // =========================================================
-                // 1. STUFFING REPORT (MASTER PAGE - Write Container Nos here)
+                // 1. STUFFING REPORT (MASTER PAGE)
                 // =========================================================
                 const wsStuff = wb.getWorksheet('STUFFING REPORT');
                 setCellVal(wsStuff, 'E5', jobRef);
@@ -316,7 +330,7 @@ Important Rules for Extraction:
                     setCellVal(wsStuff, `I${r}`, cleanSealNo(c.seal));
                 });
 
-                // Clear unused rows in Master Page (including Column B so linked sheets show blank)
+                // Leave unused container rows completely blank
                 for (let r = 21 + containers.length; r <= 60; r++) {
                     ['B','C','D','E','F','G','H','I'].forEach(col => setCellVal(wsStuff, `${col}${r}`, null));
                 }
@@ -342,61 +356,81 @@ Important Rules for Extraction:
                 for (let r = 12 + weighingData.length; r <= 26; r++) {
                     ['A','B','C','D'].forEach(col => setCellVal(wsWeight, `${col}${r}`, null));
                 }
+
+                // Set Tare and Additional Bags/Kgs from photo
                 setCellVal(wsWeight, 'G13', perBagTare);
+                setCellVal(wsWeight, 'G15', additionalBags);
+
+                // Format Average Weights & Total MT to 3 decimal places (0.000)
+                ['G12', 'G13', 'G14', 'I12', 'I13', 'I14', 'I15', 'I16'].forEach(addr => {
+                    setCellNumFmt(wsWeight, addr, '0.000');
+                });
 
                 // =========================================================
-                // 3. TALLY FORM (DO NOT touch Column B - preserve Master link!)
+                // 3. TALLY FORM (Blank out unused rows including linked 0s)
                 // =========================================================
                 const wsTally = wb.getWorksheet('TALLY FORM');
                 const slingCols = ['C','D','E','F','G','H','I','J','K','L'];
                 containers.forEach((c, i) => {
                     const r = 11 + i;
-                    // Column B is NOT overwritten so formula link to Stuffing Report stays intact
+                    const sRow = 21 + i;
+                    // Link Container No to Stuffing Report
+                    setCellVal(wsTally, `B${r}`, { formula: `'STUFFING REPORT'!B${sRow}` });
                     const slings = c.slings || [];
                     slingCols.forEach((col, idx) => {
                         setCellVal(wsTally, `${col}${r}`, idx < slings.length ? slings[idx] : null);
                     });
+                    setCellVal(wsTally, `M${r}`, { formula: `SUM(C${r}:L${r})` });
                 });
-                // Clear ONLY sling data columns (C to L) for unused rows; leave B and M (formulas) intact
+                // Completely blank out unused rows (no "0" in B or M)
                 for (let r = 11 + containers.length; r <= 50; r++) {
-                    slingCols.forEach(col => setCellVal(wsTally, `${col}${r}`, null));
+                    ['B', ...slingCols, 'M', 'N'].forEach(col => setCellVal(wsTally, `${col}${r}`, null));
                 }
                 for (let r = 11; r <= 50; r++) {
                     wsTally.getRow(r).hidden = (r >= 11 + visibleCount);
                 }
 
                 // =========================================================
-                // 4. VGM REPORT (DO NOT touch Column B, E, L - preserve formulas!)
+                // 4. VGM REPORT (Blank out unused rows + Photo Additional Packages)
                 // =========================================================
                 const wsVgm = wb.getWorksheet('VGM REPORT');
                 setCellVal(wsVgm, 'J5', dateSlash);
                 setCellVal(wsVgm, 'L5', startTime);
 
-                ['F9','G9','H9'].forEach((addr, idx) => {
-                    if (idx < vgmHeaders.length) setCellVal(wsVgm, addr, vgmHeaders[idx]);
+                ['F9','G9','H9','I9'].forEach((addr, idx) => {
+                    if (idx < vgmHeaders.length) {
+                        setCellVal(wsVgm, addr, vgmHeaders[idx]);
+                    } else if (idx === 3) {
+                        setCellVal(wsVgm, addr, null);
+                    }
                 });
 
                 containers.forEach((c, i) => {
                     const r = 10 + i;
+                    const sRow = 21 + i;
                     const vo = c.vgm_others || [];
-                    // Column B is NOT overwritten (linked to Master Page)
-                    setCellVal(wsVgm, `C${r}`, c.bags || 0);
+                    // Keep Master links for active container rows
+                    setCellVal(wsVgm, `B${r}`, { formula: `'STUFFING REPORT'!B${sRow}` });
+                    setCellVal(wsVgm, `C${r}`, { formula: `'STUFFING REPORT'!F${sRow}` });
                     setCellVal(wsVgm, `D${r}`, perBagGross);
+                    setCellVal(wsVgm, `E${r}`, { formula: `C${r}*D${r}` });
                     setCellVal(wsVgm, `F${r}`, vo[0] ?? null);
                     setCellVal(wsVgm, `G${r}`, vo[1] ?? null);
                     setCellVal(wsVgm, `H${r}`, vo[2] ?? null);
+                    setCellVal(wsVgm, `I${r}`, vo[3] ?? null);
                     setCellVal(wsVgm, `K${r}`, c.ctn_tare_kg || 0);
+                    setCellVal(wsVgm, `L${r}`, { formula: `SUM(E${r}:K${r})` });
                 });
-                // Clear ONLY data columns (C, D, F, G, H, I, J, K) for unused rows; keep B, E, L formulas intact
+                // Completely blank out unused rows (no "0" in B, C, E, L)
                 for (let r = 10 + containers.length; r <= 49; r++) {
-                    ['C','D','F','G','H','I','J','K'].forEach(col => setCellVal(wsVgm, `${col}${r}`, null));
+                    ['B','C','D','E','F','G','H','I','J','K','L'].forEach(col => setCellVal(wsVgm, `${col}${r}`, null));
                 }
                 for (let r = 10; r <= 49; r++) {
                     wsVgm.getRow(r).hidden = (r >= 10 + visibleCount);
                 }
 
                 // =========================================================
-                // 5. CTN SURVEY REPORT (DO NOT touch Column B - preserve Master link!)
+                // 5. CTN SURVEY REPORT (Blank out unused rows)
                 // =========================================================
                 const wsSurvey = wb.getWorksheet('CTN SURVEY REPORT');
                 setCellVal(wsSurvey, 'I5', surveyLoc);
@@ -404,7 +438,8 @@ Important Rules for Extraction:
 
                 containers.forEach((c, i) => {
                     const r = 9 + i;
-                    // Column B is NOT overwritten (linked to Master Page)
+                    const sRow = 21 + i;
+                    setCellVal(wsSurvey, `B${r}`, { formula: `'STUFFING REPORT'!B${sRow}` });
                     setCellVal(wsSurvey, `C${r}`, toTitleCase(c.hole_dented || "No"));
                     setCellVal(wsSurvey, `D${r}`, toTitleCase(c.floor_type || "Wood"));
                     setCellVal(wsSurvey, `E${r}`, toTitleCase(c.floor_damaged || "No"));
@@ -416,9 +451,9 @@ Important Rules for Extraction:
                     setCellVal(wsSurvey, `K${r}`, toTitleCase(c.type || "Steel"));
                     setCellVal(wsSurvey, `L${r}`, toTitleCase(c.suitable || "Yes"));
                 });
-                // Clear ONLY survey condition columns (C to L) for unused rows; keep Column B formula intact
+                // Completely blank out unused rows (no "0" in Column B)
                 for (let r = 9 + containers.length; r <= 48; r++) {
-                    ['C','D','E','F','G','H','I','J','K','L'].forEach(col => setCellVal(wsSurvey, `${col}${r}`, null));
+                    ['B','C','D','E','F','G','H','I','J','K','L'].forEach(col => setCellVal(wsSurvey, `${col}${r}`, null));
                 }
                 for (let r = 9; r <= 48; r++) {
                     wsSurvey.getRow(r).hidden = (r >= 9 + visibleCount);
