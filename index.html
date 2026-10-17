@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SGS SIR Report Automation</title>
-    <!-- Tailwind CSS for modern UI -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ExcelJS & FileSaver for Excel manipulation in browser -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Inter:wght@400;600;700&display=swap');
         body { font-family: 'Inter', 'Padauk', sans-serif; }
@@ -16,7 +13,6 @@
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 pb-16 relative">
 
-    <!-- Header Navbar -->
     <header class="bg-indigo-900 text-white shadow-md">
         <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
             <div class="flex items-center space-x-3">
@@ -27,10 +23,8 @@
         </div>
     </header>
 
-    <!-- Main Content -->
     <main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
-        <!-- Step 1: AI Prompt Box -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <button onclick="togglePrompt()" class="w-full px-6 py-4 text-left bg-slate-100 hover:bg-slate-200 transition flex justify-between items-center">
                 <span class="font-bold text-slate-700">📌 အဆင့် (၁) - AI တွင် ပုံများဖတ်ရန် Prompt ယူပါ (နှိပ်၍ဖွင့်/ပိတ်ပါ)</span>
@@ -114,12 +108,10 @@ Important Rules for Extraction:
             </div>
         </div>
 
-        <!-- Step 2: Input, Filename & Generate -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
             <h2 class="font-bold text-lg text-slate-700 border-b pb-3">📌 အဆင့် (၂) - JSON Data နှင့် File Name ထည့်သွင်းပြီး Excel ထုတ်ယူပါ</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Template Status / Optional Upload -->
                 <div class="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
                     <label class="block text-sm font-bold text-slate-700">📄 Excel Template ဖိုင်</label>
                     <p class="text-xs text-emerald-600 font-medium">✅ Server ရှိ `(40 FCL)SIR TEMPLATE_2.xlsx` ကို အလိုအလျောက် အသုံးပြုပါမည်။</p>
@@ -128,7 +120,6 @@ Important Rules for Extraction:
                     <input type="file" id="templateUpload" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
                 </div>
 
-                <!-- JSON Textarea -->
                 <div class="md:col-span-2 space-y-2">
                     <div class="flex justify-between items-center">
                         <label class="block text-sm font-bold text-slate-700">📝 AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -</label>
@@ -136,14 +127,10 @@ Important Rules for Extraction:
                             🗑️ Clear Data
                         </button>
                     </div>
-                    <textarea id="jsonInput" oninput="autoFillFileName()" rows="8" placeholder='{
-  "job_ref": "2108339",
-  ...
-}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                    <textarea id="jsonInput" oninput="autoFillFileName()" rows="8" placeholder='{\n  "job_ref": "2108339",\n  ...\n}' class="w-full p-3 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
                 </div>
             </div>
 
-            <!-- Pre-Generate Editable Filename & Action Button -->
             <div class="bg-indigo-50/70 border border-indigo-100 p-5 rounded-xl flex flex-col md:flex-row items-stretch md:items-end justify-between gap-4">
                 <div class="flex-1 space-y-1.5">
                     <label class="block text-sm font-bold text-slate-700">✏️ File Name (JSON ထည့်လိုက်သည်နှင့် Auto ပေါ်လာပါမည်၊ မကြိုက်လျှင် စိတ်ကြိုက်ပြင်နိုင်ပါသည်) -</label>
@@ -157,13 +144,10 @@ Important Rules for Extraction:
                 </button>
             </div>
 
-            <!-- Status Alert -->
             <div id="statusMsg" class="hidden p-4 rounded-lg text-sm font-medium"></div>
         </div>
-
     </main>
 
-    <!-- Watermark at Bottom Center -->
     <footer class="fixed bottom-3 left-0 right-0 text-center pointer-events-none select-none z-50">
         <span class="text-xs font-bold tracking-widest text-slate-400/70 uppercase">By KNA</span>
     </footer>
@@ -173,15 +157,43 @@ Important Rules for Extraction:
 
         function togglePrompt() {
             const sec = document.getElementById('promptSection');
-            sec.classList.toggle('hidden');
+            const icon = document.getElementById('toggleIcon');
+            if (sec.classList.contains('hidden')) {
+                sec.classList.remove('hidden');
+                icon.innerText = "▲";
+            } else {
+                sec.classList.add('hidden');
+                icon.innerText = "▼";
+            }
         }
 
+        // APK/WebView Copy Fallback added
         function copyPrompt() {
-            const text = document.getElementById('aiPromptText').value;
-            navigator.clipboard.writeText(text);
-            const btn = document.getElementById('copyBtn');
-            btn.innerText = "✅ Copied!";
-            setTimeout(() => btn.innerText = "📋 Copy Prompt", 2000);
+            const textArea = document.getElementById('aiPromptText');
+            textArea.select();
+            textArea.setSelectionRange(0, 99999); // For Mobile Devices
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const btn = document.getElementById('copyBtn');
+                    btn.innerText = "✅ Copied!";
+                    setTimeout(() => btn.innerText = "📋 Copy Prompt", 2000);
+                    return;
+                }
+            } catch (err) { }
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textArea.value).then(() => {
+                    const btn = document.getElementById('copyBtn');
+                    btn.innerText = "✅ Copied!";
+                    setTimeout(() => btn.innerText = "📋 Copy Prompt", 2000);
+                }).catch(e => {
+                    alert("⚠️ သင့် App ထဲတွင် Copy ကူးခွင့် ပိတ်ထားပါသည်။ စာသားကို ဖိ၍ Manual Copy ကူးယူပါ။");
+                });
+            } else {
+                alert("⚠️ သင့် App ထဲတွင် Copy ကူးခွင့် ပိတ်ထားပါသည်။ စာသားကို ဖိ၍ Manual Copy ကူးယူပါ။");
+            }
         }
 
         function clearJson() {
@@ -213,7 +225,6 @@ Important Rules for Extraction:
             return str.toString().toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         }
 
-        // Format Container No: "BMOU- 1657789" or "CSNU.2702460" -> "BMOU 1657789"
         function formatContainerNo(str) {
             if (!str) return "";
             const cleaned = str.toString().toUpperCase().trim();
@@ -224,7 +235,6 @@ Important Rules for Extraction:
             return cleaned.replace(/[^A-Z0-9]+/g, ' ').trim();
         }
 
-        // Clean Seal No: Convert lookalike letters (S->5, O->0, I/l->1, B->8, Z->2) and keep digits only
         function cleanSealNo(str) {
             if (str === null || str === undefined) return "";
             const map = { 'S': '5', 's': '5', 'O': '0', 'o': '0', 'I': '1', 'l': '1', 'i': '1', 'B': '8', 'Z': '2', 'z': '2', 'G': '6', 'b': '6' };
@@ -242,15 +252,6 @@ Important Rules for Extraction:
             }
         }
 
-        function setCellNumFmt(ws, addr, fmt) {
-            const cell = ws.getCell(addr);
-            if (cell.isMerged && cell.master) {
-                cell.master.numFmt = fmt;
-            } else {
-                cell.numFmt = fmt;
-            }
-        }
-
         async function processExcel() {
             const rawJson = document.getElementById('jsonInput').value.trim();
             if (!rawJson) {
@@ -262,10 +263,10 @@ Important Rules for Extraction:
             try {
                 let cleaned = rawJson;
                 if (cleaned.startsWith("```")) {
-                    cleaned = cleaned.split("
-").slice(1).join("
-");
-                    if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
+                    const lines = cleaned.split(/\r?\n/);
+                    if(lines.length > 1) {
+                        cleaned = lines.slice(1, lines[lines.length-1].includes("```") ? -1 : lines.length).join("\n");
+                    }
                 }
                 data = JSON.parse(cleaned.trim());
             } catch (err) {
@@ -283,15 +284,17 @@ Important Rules for Extraction:
                 if (fileInput.files.length > 0) {
                     arrayBuffer = await fileInput.files[0].arrayBuffer();
                 } else {
-                    const res = await fetch('(40 FCL)SIR TEMPLATE_2.xlsx');
-                    if (!res.ok) throw new Error("Template ဖိုင်ကို မတွေ့ရှိပါ။ အပေါ်တွင် Upload တင်ပေးပါ။");
+                    // Try fetch with both normal and encoded spaces
+                    let res = await fetch('(40 FCL)SIR TEMPLATE_2.xlsx').catch(e => null);
+                    if (!res || !res.ok) {
+                        res = await fetch('(40%20FCL)SIR%20TEMPLATE_2.xlsx').catch(e => null);
+                    }
+                    if (!res || !res.ok) throw new Error("Template ဖိုင်ကို မတွေ့ရှိပါ။ အပေါ်တွင် Upload တင်ပေးပါ။");
                     arrayBuffer = await res.arrayBuffer();
                 }
 
                 const wb = new ExcelJS.Workbook();
                 await wb.xlsx.load(arrayBuffer);
-
-                // Force Excel to recalculate all linked formulas when opened
                 wb.calcProperties.fullCalcOnLoad = true;
 
                 const jobRef = String(data.job_ref || "").trim();
@@ -319,14 +322,11 @@ Important Rules for Extraction:
                 const containers = data.containers || [];
                 const visibleCount = Math.max(10, containers.length);
                 
-                // VGM Specifics
                 const vgmPerBagGross = data.vgm_per_bag_gross !== undefined ? data.vgm_per_bag_gross : perBagGross;
                 const vgmCompletedDate = data.vgm_completed_date || dateSlash;
                 const vgmCompletedTime = containers.length > 0 ? (containers[containers.length - 1].complete || "") : "";
 
-                // =========================================================
                 // 1. STUFFING REPORT (MASTER PAGE)
-                // =========================================================
                 const wsStuff = wb.getWorksheet('STUFFING REPORT');
                 setCellVal(wsStuff, 'E5', jobRef);
                 setCellVal(wsStuff, 'F6', dateSlash);
@@ -353,7 +353,6 @@ Important Rules for Extraction:
                     setCellVal(wsStuff, `I${r}`, cleanSealNo(c.seal));
                 });
 
-                // Leave unused container rows completely blank
                 for (let r = 21 + containers.length; r <= 60; r++) {
                     ['B','C','D','E','F','G','H','I'].forEach(col => setCellVal(wsStuff, `${col}${r}`, null));
                 }
@@ -363,9 +362,7 @@ Important Rules for Extraction:
                 setCellVal(wsStuff, 'C68', testWeight);
                 setCellVal(wsStuff, 'G68', testWeightNo);
 
-                // =========================================================
                 // 2. WEIGHT LIST (SUMMARY)
-                // =========================================================
                 const wsWeight = wb.getWorksheet('WEIGHT LIST (SUMMARY)');
                 setCellVal(wsWeight, 'C8', weighingPercent);
 
@@ -380,15 +377,12 @@ Important Rules for Extraction:
                     ['A','B','C','D'].forEach(col => setCellVal(wsWeight, `${col}${r}`, null));
                 }
 
-                // Use Excel's ROUND(..., 3) formula ONLY on G12 so we never mutate shared styles!
                 setCellVal(wsWeight, 'G12', { formula: 'ROUND(C27/B27, 3)' });
                 setCellVal(wsWeight, 'G13', perBagTare);
                 setCellVal(wsWeight, 'G14', { formula: 'ROUND(G12-G13, 3)' });
                 setCellVal(wsWeight, 'G15', additionalBags);
 
-                // =========================================================
-                // 3. TALLY FORM (Blank out unused rows)
-                // =========================================================
+                // 3. TALLY FORM
                 const wsTally = wb.getWorksheet('TALLY FORM');
                 const slingCols = ['C','D','E','F','G','H','I','J','K','L'];
                 containers.forEach((c, i) => {
@@ -410,14 +404,10 @@ Important Rules for Extraction:
                     wsTally.getRow(r).hidden = (r >= 11 + visibleCount);
                 }
 
-                // =========================================================
-                // 4. VGM REPORT (Blank out unused rows)
-                // =========================================================
+                // 4. VGM REPORT
                 const wsVgm = wb.getWorksheet('VGM REPORT');
                 setCellVal(wsVgm, 'J5', dateSlash);
                 setCellVal(wsVgm, 'L5', startTime);
-                
-                // VGM specific completed date & time
                 setCellVal(wsVgm, 'J6', vgmCompletedDate);
                 setCellVal(wsVgm, 'L6', vgmCompletedTime);
 
@@ -435,7 +425,7 @@ Important Rules for Extraction:
                     const vo = c.vgm_others || [];
                     setCellVal(wsVgm, `B${r}`, { formula: `'STUFFING REPORT'!B${sRow}` });
                     setCellVal(wsVgm, `C${r}`, { formula: `'STUFFING REPORT'!F${sRow}` });
-                    setCellVal(wsVgm, `D${r}`, vgmPerBagGross); // VGM specific average gross weight
+                    setCellVal(wsVgm, `D${r}`, vgmPerBagGross); 
                     setCellVal(wsVgm, `E${r}`, { formula: `C${r}*D${r}` });
                     setCellVal(wsVgm, `F${r}`, vo[0] ?? null);
                     setCellVal(wsVgm, `G${r}`, vo[1] ?? null);
@@ -451,9 +441,7 @@ Important Rules for Extraction:
                     wsVgm.getRow(r).hidden = (r >= 10 + visibleCount);
                 }
 
-                // =========================================================
-                // 5. CTN SURVEY REPORT (Blank out unused rows)
-                // =========================================================
+                // 5. CTN SURVEY REPORT
                 const wsSurvey = wb.getWorksheet('CTN SURVEY REPORT');
                 setCellVal(wsSurvey, 'I5', surveyLoc);
                 setCellVal(wsSurvey, 'I6', dateSlash);
@@ -480,7 +468,6 @@ Important Rules for Extraction:
                     wsSurvey.getRow(r).hidden = (r >= 9 + visibleCount);
                 }
 
-                // Determine Final File Name from Input Box
                 let fileName = document.getElementById('customFileName').value.trim();
                 if (!fileName || fileName === "SIR JOB NO") {
                     fileName = jobRef ? `SIR JOB NO ${jobRef}` : "SIR JOB NO";
@@ -492,12 +479,23 @@ Important Rules for Extraction:
 
                 const outBuffer = await wb.xlsx.writeBuffer();
                 const blob = new Blob([outBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-                saveAs(blob, fileName);
                 
-                showStatus(`🎉 ${fileName} ကို အောင်မြင်စွာ Download ရယူပြီးပါပြီ!`);
+                // Base64 Download Fallback for WebView/APK
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const a = document.createElement('a');
+                    a.href = e.target.result;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => document.body.removeChild(a), 100);
+                };
+                reader.readAsDataURL(blob);
+                
+                showStatus(`🎉 ${fileName} ကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ! (Download မကျလာပါက Chrome တွင်ဖွင့်ပါ)`);
 
             } catch (err) {
-                showStatus("❌ အမှားအယွင်းဖြစ်ပေါ်နေပါသည်: " + err.message, true);
+                showStatus("❌ " + err.message, true);
             } finally {
                 btn.disabled = false;
                 btn.innerText = "🚀 Generate & Download Excel";
