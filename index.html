@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SGS SIR Report Automation</title>
+    <!-- Tailwind CSS for modern UI -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ExcelJS & FileSaver for Excel manipulation in browser -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Inter:wght@400;600;700&display=swap');
         body { font-family: 'Inter', 'Padauk', sans-serif; }
@@ -13,6 +16,7 @@
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800 pb-16 relative">
 
+    <!-- Header Navbar -->
     <header class="bg-indigo-900 text-white shadow-md">
         <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
             <div class="flex items-center space-x-3">
@@ -23,8 +27,10 @@
         </div>
     </header>
 
+    <!-- Main Content -->
     <main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
+        <!-- Step 1: AI Prompt Box -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <button onclick="togglePrompt()" class="w-full px-6 py-4 text-left bg-slate-100 hover:bg-slate-200 transition flex justify-between items-center">
                 <span class="font-bold text-slate-700">📌 အဆင့် (၁) - AI တွင် ပုံများဖတ်ရန် Prompt ယူပါ (နှိပ်၍ဖွင့်/ပိတ်ပါ)</span>
@@ -112,14 +118,16 @@ Important Rules for Extraction:
             <h2 class="font-bold text-lg text-slate-700 border-b pb-3">📌 အဆင့် (၂) - JSON Data နှင့် File Name ထည့်သွင်းပြီး Excel ထုတ်ယူပါ</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Template Info -->
                 <div class="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
                     <label class="block text-sm font-bold text-slate-700">📄 Excel Template ဖိုင်</label>
-                    <p class="text-xs text-emerald-600 font-medium">✅ Server ရှိ `(40 FCL)SIR TEMPLATE_2.xlsx` ကို အလိုအလျောက် အသုံးပြုပါမည်။</p>
+                    <p class="text-xs text-emerald-600 font-medium">✅ Server ရှိ Template ကို အလိုအလျောက် အသုံးပြုပါမည်။</p>
                     <hr class="border-slate-200">
                     <label class="block text-xs text-slate-500">အကယ်၍ သီးသန့် Template တင်လိုမှသာ ရွေးပါ -</label>
                     <input type="file" id="templateUpload" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
                 </div>
 
+                <!-- JSON Textarea -->
                 <div class="md:col-span-2 space-y-2">
                     <div class="flex justify-between items-center">
                         <label class="block text-sm font-bold text-slate-700">📝 AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -</label>
@@ -146,8 +154,10 @@ Important Rules for Extraction:
 
             <div id="statusMsg" class="hidden p-4 rounded-lg text-sm font-medium"></div>
         </div>
+
     </main>
 
+    <!-- Watermark at Bottom Center -->
     <footer class="fixed bottom-3 left-0 right-0 text-center pointer-events-none select-none z-50">
         <span class="text-xs font-bold tracking-widest text-slate-400/70 uppercase">By KNA</span>
     </footer>
@@ -167,11 +177,11 @@ Important Rules for Extraction:
             }
         }
 
-        // APK/WebView Copy Fallback added
+        // Safe Fallback Copy Method
         function copyPrompt() {
             const textArea = document.getElementById('aiPromptText');
             textArea.select();
-            textArea.setSelectionRange(0, 99999); // For Mobile Devices
+            textArea.setSelectionRange(0, 99999);
             
             try {
                 const successful = document.execCommand('copy');
@@ -189,10 +199,10 @@ Important Rules for Extraction:
                     btn.innerText = "✅ Copied!";
                     setTimeout(() => btn.innerText = "📋 Copy Prompt", 2000);
                 }).catch(e => {
-                    alert("⚠️ သင့် App ထဲတွင် Copy ကူးခွင့် ပိတ်ထားပါသည်။ စာသားကို ဖိ၍ Manual Copy ကူးယူပါ။");
+                    alert("⚠️ သင့် Browser/App ထဲတွင် Copy ကူးခွင့် ပိတ်ထားပါသည်။ စာသားကို ဖိ၍ Manual Copy ကူးယူပါ။");
                 });
             } else {
-                alert("⚠️ သင့် App ထဲတွင် Copy ကူးခွင့် ပိတ်ထားပါသည်။ စာသားကို ဖိ၍ Manual Copy ကူးယူပါ။");
+                alert("⚠️ သင့် Browser/App ထဲတွင် Copy ကူးခွင့် ပိတ်ထားပါသည်။ စာသားကို ဖိ၍ Manual Copy ကူးယူပါ။");
             }
         }
 
@@ -281,15 +291,34 @@ Important Rules for Extraction:
             try {
                 let arrayBuffer;
                 const fileInput = document.getElementById('templateUpload');
+                
+                // Fetch logic heavily improved for GitHub Pages
                 if (fileInput.files.length > 0) {
                     arrayBuffer = await fileInput.files[0].arrayBuffer();
                 } else {
-                    // Try fetch with both normal and encoded spaces
-                    let res = await fetch('(40 FCL)SIR TEMPLATE_2.xlsx').catch(e => null);
-                    if (!res || !res.ok) {
-                        res = await fetch('(40%20FCL)SIR%20TEMPLATE_2.xlsx').catch(e => null);
+                    const templatesToTry = [
+                        './(40 FCL)SIR TEMPLATE_2.xlsx',
+                        '(40 FCL)SIR TEMPLATE_2.xlsx',
+                        '(40%20FCL)SIR%20TEMPLATE_2.xlsx',
+                        'template.xlsx' // Fallback option if user renames the file
+                    ];
+                    
+                    let res = null;
+                    for (const tName of templatesToTry) {
+                        try {
+                            let tempRes = await fetch(tName);
+                            if (tempRes.ok) {
+                                res = tempRes;
+                                break;
+                            }
+                        } catch (e) {
+                            console.warn("Fetch missing for:", tName);
+                        }
                     }
-                    if (!res || !res.ok) throw new Error("Template ဖိုင်ကို မတွေ့ရှိပါ။ အပေါ်တွင် Upload တင်ပေးပါ။");
+                    
+                    if (!res || !res.ok) {
+                        throw new Error("Template ဖိုင်ကို ဆွဲယူ၍မရပါ။ GitHub တွင် ဖိုင်နာမည် မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ (သို့မဟုတ်) ဖိုင်နာမည်ကို 'template.xlsx' ဟု ပြောင်းတင်ကြည့်ပါ။");
+                    }
                     arrayBuffer = await res.arrayBuffer();
                 }
 
@@ -492,7 +521,7 @@ Important Rules for Extraction:
                 };
                 reader.readAsDataURL(blob);
                 
-                showStatus(`🎉 ${fileName} ကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ! (Download မကျလာပါက Chrome တွင်ဖွင့်ပါ)`);
+                showStatus(`🎉 ${fileName} ကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ!`);
 
             } catch (err) {
                 showStatus("❌ " + err.message, true);
