@@ -35,7 +35,7 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 st.title("📊 SGS Inspection Report (SIR) Excel Generator")
 st.markdown("""
-ဤ Web App သည် **API Key မလိုဘဲ** SGS Report ပုံများမှ အချက်အလက်များကို `(40 FCL)SIR TEMPLATE_2.xlsx` ထဲသို့ အလိုအလျောက် ဖြည့်သွင်းပေးမည့် Hybrid စနစ် ဖြစ်ပါသည်။
+ဤ Web App သည် **API Key မလိုဘဲ** SGS Report ပုံများမှ အချက်အလက်များကို `template.xlsx` ထဲသို့ အလိုအလျောက် ဖြည့်သွင်းပေးမည့် Hybrid စနစ် ဖြစ်ပါသည်။
 """)
 
 with st.expander("📌 အဆင့် (၁) - AI တွင် ပုံများဖတ်ရန် Prompt ယူပါ (နှိပ်၍ဖတ်ပါ)", expanded=True):
@@ -132,11 +132,13 @@ def clear_json():
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    default_template = "(40 FCL)SIR TEMPLATE_2.xlsx"
+    default_template = "template.xlsx"
     use_default = os.path.exists(default_template)
     
     if use_default:
         st.success(f"✅ `{default_template}` ဖိုင်ကို Folder ထဲတွင် အသင့်တွေ့ရှိပါသည်။")
+    else:
+        st.error(f"❌ `{default_template}` ကို မတွေ့ပါ။ GitHub တွင် ဖိုင်နာမည် ပြောင်းတင်ပေးပါ။")
     
     uploaded_template = st.file_uploader(
         "Template ဖိုင်တင်ရန် (Folder ထဲတွင် ရှိပြီးသားဆိုလျှင် ထပ်တင်ရန်မလိုပါ)", 
@@ -193,19 +195,9 @@ def set_cell_value(ws, cell_coord, value):
     else:
         cell.value = value
 
-def set_cell_numfmt(ws, cell_coord, fmt):
-    cell = ws[cell_coord]
-    if isinstance(cell, openpyxl.cell.cell.MergedCell):
-        for merged_range in ws.merged_cells.ranges:
-            if cell_coord in merged_range:
-                top_left_cell = ws.cell(row=merged_range.min_row, column=merged_range.min_col)
-                top_left_cell.number_format = fmt
-                return
-    else:
-        cell.number_format = fmt
-
 def generate_excel(template_stream, data):
     wb = openpyxl.load_workbook(template_stream)
+    wb.calcProperties.fullCalcOnLoad = true
     
     job_ref = str(data.get("job_ref", "")).strip()
     date_slash = data.get("date", "")
@@ -237,7 +229,7 @@ def generate_excel(template_stream, data):
     vgm_completed_date = data.get("vgm_completed_date", date_slash)
     vgm_completed_time = containers[-1].get("complete", "") if containers else ""
     
-    # 1. STUFFING REPORT (MASTER PAGE)
+    # 1. STUFFING REPORT
     ws_stuffing = wb['STUFFING REPORT']
     set_cell_value(ws_stuffing, 'E5', job_ref)
     set_cell_value(ws_stuffing, 'F6', date_slash)
@@ -274,7 +266,7 @@ def generate_excel(template_stream, data):
     set_cell_value(ws_stuffing, 'C68', test_weight)
     set_cell_value(ws_stuffing, 'G68', test_weight_no)
     
-    # 2. WEIGHT LIST (SUMMARY)
+    # 2. WEIGHT LIST
     ws_weight = wb['WEIGHT LIST (SUMMARY)']
     set_cell_value(ws_weight, 'C8', weighing_percent)
     
@@ -285,17 +277,16 @@ def generate_excel(template_stream, data):
         set_cell_value(ws_weight, f'C{row}', d.get("gross_weight", 0))
         set_cell_value(ws_weight, f'D{row}', "kgs")
         
-    for r in range(12 + weighing_data.length, 27):
+    for r in range(12 + len(weighing_data), 27):
         for col in ['A', 'B', 'C', 'D']:
             set_cell_value(ws_weight, f'{col}{r}', None)
             
-    # Use Excel's ROUND(..., 3) formula ONLY on G12 so we never mutate shared styles!
     set_cell_value(ws_weight, 'G12', '=ROUND(C27/B27, 3)')
     set_cell_value(ws_weight, 'G13', per_bag_tare)
     set_cell_value(ws_weight, 'G14', '=ROUND(G12-G13, 3)')
     set_cell_value(ws_weight, 'G15', additional_bags)
     
-    # 3. TALLY FORM (Blank out unused rows completely)
+    # 3. TALLY FORM
     ws_tally = wb['TALLY FORM']
     start_row_tally = 11
     for i, c in enumerate(containers):
@@ -312,13 +303,13 @@ def generate_excel(template_stream, data):
         set_cell_value(ws_tally, f'N{row}', float(t_add) if (t_add is not None and str(t_add).strip() not in ["", "-"]) else None)
             
     for r in range(start_row_tally + len(containers), 51):
-        for col in range(2, 15): # Clear B through N completely
+        for col in range(2, 15):
             set_cell_value(ws_tally, f'{get_column_letter(col)}{r}', None)
             
     for r in range(start_row_tally, 51):
         ws_tally.row_dimensions[r].hidden = (r >= start_row_tally + visible_count)
         
-    # 4. VGM REPORT (Blank out unused rows completely)
+    # 4. VGM REPORT
     ws_vgm = wb['VGM REPORT']
     set_cell_value(ws_vgm, 'J5', date_slash)
     set_cell_value(ws_vgm, 'L5', start_time)
@@ -354,7 +345,7 @@ def generate_excel(template_stream, data):
     for r in range(start_row_vgm, 50):
         ws_vgm.row_dimensions[r].hidden = (r >= start_row_vgm + visible_count)
         
-    # 5. CTN SURVEY REPORT (Blank out unused rows completely)
+    # 5. CTN SURVEY REPORT
     ws_survey = wb['CTN SURVEY REPORT']
     set_cell_value(ws_survey, 'I5', survey_loc)
     set_cell_value(ws_survey, 'I6', date_slash)
@@ -402,7 +393,7 @@ if st.button("🚀 Generate Excel File", type="primary"):
             template_source = uploaded_template if uploaded_template else (default_template if use_default else None)
             
             if not template_source:
-                st.error("⚠️ `(40 FCL)SIR TEMPLATE_2.xlsx` ဖိုင်ကို Upload တင်ပေးပါ။")
+                st.error("⚠️ `template.xlsx` ဖိုင်ကို Upload တင်ပေးပါ။")
             else:
                 excel_bytes, job_ref = generate_excel(template_source, parsed_data)
                 

@@ -114,6 +114,7 @@ Important Rules for Extraction:
             </div>
         </div>
 
+        <!-- Step 2: Input, Filename & Generate -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
             <h2 class="font-bold text-lg text-slate-700 border-b pb-3">📌 အဆင့် (၂) - JSON Data နှင့် File Name ထည့်သွင်းပြီး Excel ထုတ်ယူပါ</h2>
 
@@ -121,9 +122,9 @@ Important Rules for Extraction:
                 <!-- Template Info -->
                 <div class="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
                     <label class="block text-sm font-bold text-slate-700">📄 Excel Template ဖိုင်</label>
-                    <p class="text-xs text-emerald-600 font-medium">✅ Server ရှိ Template ကို အလိုအလျောက် အသုံးပြုပါမည်။</p>
+                    <p class="text-xs text-emerald-600 font-medium">✅ Server ရှိ `template.xlsx` ကို အလိုအလျောက် အသုံးပြုပါမည်။</p>
                     <hr class="border-slate-200">
-                    <label class="block text-xs text-slate-500">အကယ်၍ သီးသန့် Template တင်လိုမှသာ ရွေးပါ -</label>
+                    <label class="block text-xs text-slate-500">အကယ်၍ Server မှ ဆွဲမရပါက ဤနေရာတွင် တင်ပေးပါ -</label>
                     <input type="file" id="templateUpload" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
                 </div>
 
@@ -139,6 +140,7 @@ Important Rules for Extraction:
                 </div>
             </div>
 
+            <!-- Pre-Generate Editable Filename & Action Button -->
             <div class="bg-indigo-50/70 border border-indigo-100 p-5 rounded-xl flex flex-col md:flex-row items-stretch md:items-end justify-between gap-4">
                 <div class="flex-1 space-y-1.5">
                     <label class="block text-sm font-bold text-slate-700">✏️ File Name (JSON ထည့်လိုက်သည်နှင့် Auto ပေါ်လာပါမည်၊ မကြိုက်လျှင် စိတ်ကြိုက်ပြင်နိုင်ပါသည်) -</label>
@@ -152,6 +154,7 @@ Important Rules for Extraction:
                 </button>
             </div>
 
+            <!-- Status Alert -->
             <div id="statusMsg" class="hidden p-4 rounded-lg text-sm font-medium"></div>
         </div>
 
@@ -292,15 +295,15 @@ Important Rules for Extraction:
                 let arrayBuffer;
                 const fileInput = document.getElementById('templateUpload');
                 
-                // Fetch logic heavily improved for GitHub Pages
+                // Fetch logic adapted for 'template.xlsx' to avoid all URL encoding issues
                 if (fileInput.files.length > 0) {
                     arrayBuffer = await fileInput.files[0].arrayBuffer();
                 } else {
                     const templatesToTry = [
-                        './(40 FCL)SIR TEMPLATE_2.xlsx',
+                        'template.xlsx',
+                        './template.xlsx',
                         '(40 FCL)SIR TEMPLATE_2.xlsx',
-                        '(40%20FCL)SIR%20TEMPLATE_2.xlsx',
-                        'template.xlsx' // Fallback option if user renames the file
+                        encodeURI('(40 FCL)SIR TEMPLATE_2.xlsx')
                     ];
                     
                     let res = null;
@@ -317,7 +320,7 @@ Important Rules for Extraction:
                     }
                     
                     if (!res || !res.ok) {
-                        throw new Error("Template ဖိုင်ကို ဆွဲယူ၍မရပါ။ GitHub တွင် ဖိုင်နာမည် မှန်ကန်မှုရှိမရှိ စစ်ဆေးပါ (သို့မဟုတ်) ဖိုင်နာမည်ကို 'template.xlsx' ဟု ပြောင်းတင်ကြည့်ပါ။");
+                        throw new Error("Template ဖိုင်ကို ဆွဲယူ၍မရပါ။ ကျေးဇူးပြု၍ GitHub ရှိ Excel ဖိုင်နာမည်ကို 'template.xlsx' ဟု ပြောင်းတင်ပေးပါ။");
                     }
                     arrayBuffer = await res.arrayBuffer();
                 }
@@ -521,7 +524,7 @@ Important Rules for Extraction:
                 };
                 reader.readAsDataURL(blob);
                 
-                showStatus(`🎉 ${fileName} ကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ!`);
+                showStatus(`🎉 ${fileName} ကို အောင်မြင်စွာ ဖန်တီးပြီးပါပြီ! (Download မကျလာပါက Chrome တွင်ဖွင့်ပါ)`);
 
             } catch (err) {
                 showStatus("❌ " + err.message, true);
