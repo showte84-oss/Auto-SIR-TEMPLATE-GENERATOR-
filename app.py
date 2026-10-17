@@ -35,7 +35,7 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 st.title("📊 SGS Inspection Report (SIR) Excel Generator")
 st.markdown("""
-ဤ Web App သည် **API Key မလိုဘဲ** SGS Report ပုံများမှ အချက်အလက်များကို `(40 FCL)SIR TEMPLATE.xlsx` ထဲသို့ အလိုအလျောက် ဖြည့်သွင်းပေးမည့် Hybrid စနစ် ဖြစ်ပါသည်။
+ဤ Web App သည် **API Key မလိုဘဲ** SGS Report ပုံများမှ အချက်အလက်များကို `(40 FCL)SIR TEMPLATE_2.xlsx` ထဲသို့ အလိုအလျောက် ဖြည့်သွင်းပေးမည့် Hybrid စနစ် ဖြစ်ပါသည်။
 """)
 
 with st.expander("📌 အဆင့် (၁) - AI တွင် ပုံများဖတ်ရန် Prompt ယူပါ (နှိပ်၍ဖတ်ပါ)", expanded=True):
@@ -69,6 +69,8 @@ with st.expander("📌 အဆင့် (၁) - AI တွင် ပုံမျ�
   "weighing_data": [
     {"page": 1, "bags": 192, "gross_weight": 4809.6}
   ],
+  "vgm_per_bag_gross": 25.05,
+  "vgm_completed_date": "14/10/2026",
   "vgm_other_headers": ["Seal", "SECCO", "Paper"],
   "containers": [
     {
@@ -105,7 +107,8 @@ Important Rules for Extraction:
 4. Format Date as DD/MM/YYYY.
 5. Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
 6. `slings` array can have up to 10 numbers representing each sling column in Tally Form.
-7. `vgm_other_headers` must match the exact column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the corresponding weights."""
+7. `vgm_other_headers` must match the exact column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the corresponding weights.
+8. `vgm_per_bag_gross` and `vgm_completed_date`: Extract the average gross weight per bag and the inspection completed date EXACTLY as written in the VGM Field Report image."""
     
     st.code(ai_prompt, language="text")
 
@@ -122,10 +125,14 @@ def update_filename_from_json():
     if match and match.group(1).strip():
         st.session_state["custom_filename_input"] = f"SIR JOB NO {match.group(1).strip()}"
 
+def clear_json():
+    st.session_state["json_input_area"] = ""
+    st.session_state["custom_filename_input"] = "SIR JOB NO"
+
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    default_template = "(40 FCL)SIR TEMPLATE.xlsx"
+    default_template = "(40 FCL)SIR TEMPLATE_2.xlsx"
     use_default = os.path.exists(default_template)
     
     if use_default:
@@ -137,8 +144,15 @@ with col1:
     )
 
 with col2:
+    col_t1, col_t2 = st.columns([4, 1])
+    with col_t1:
+        st.markdown("📝 **AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -**")
+    with col_t2:
+        st.button("🗑️ Clear Data", on_click=clear_json, use_container_width=True)
+
     json_input = st.text_area(
-        "AI မှ ရရှိလာသော JSON Code ကို ဤနေရာတွင် Paste ချပါ -",
+        label="JSON Input",
+        label_visibility="collapsed",
         height=240,
         key="json_input_area",
         on_change=update_filename_from_json,
@@ -179,6 +193,17 @@ def set_cell_value(ws, cell_coord, value):
     else:
         cell.value = value
 
+def set_cell_numfmt(ws, cell_coord, fmt):
+    cell = ws[cell_coord]
+    if isinstance(cell, openpyxl.cell.cell.MergedCell):
+        for merged_range in ws.merged_cells.ranges:
+            if cell_coord in merged_range:
+                top_left_cell = ws.cell(row=merged_range.min_row, column=merged_range.min_col)
+                top_left_cell.number_format = fmt
+                return
+    else:
+        cell.number_format = fmt
+
 def generate_excel(template_stream, data):
     wb = openpyxl.load_workbook(template_stream)
     
@@ -206,6 +231,11 @@ def generate_excel(template_stream, data):
     vgm_headers = data.get("vgm_other_headers", ["Seal", "SECCO", "Paper"])
     containers = data.get("containers", [])
     visible_count = max(10, len(containers))
+    
+    # VGM Specifics
+    vgm_per_bag_gross = data.get("vgm_per_bag_gross", per_bag_gross)
+    vgm_completed_date = data.get("vgm_completed_date", date_slash)
+    vgm_completed_time = containers[-1].get("complete", "") if containers else ""
     
     # 1. STUFFING REPORT (MASTER PAGE)
     ws_stuffing = wb['STUFFING REPORT']
@@ -255,11 +285,11 @@ def generate_excel(template_stream, data):
         set_cell_value(ws_weight, f'C{row}', d.get("gross_weight", 0))
         set_cell_value(ws_weight, f'D{row}', "kgs")
         
-    for r in range(12 + len(weighing_data), 27):
+    for r in range(12 + weighing_data.length, 27):
         for col in ['A', 'B', 'C', 'D']:
             set_cell_value(ws_weight, f'{col}{r}', None)
             
-    # Use ROUND(..., 3) formula only on G12 so no shared number format styles are altered
+    # Use Excel's ROUND(..., 3) formula ONLY on G12 so we never mutate shared styles!
     set_cell_value(ws_weight, 'G12', '=ROUND(C27/B27, 3)')
     set_cell_value(ws_weight, 'G13', per_bag_tare)
     set_cell_value(ws_weight, 'G14', '=ROUND(G12-G13, 3)')
@@ -292,6 +322,8 @@ def generate_excel(template_stream, data):
     ws_vgm = wb['VGM REPORT']
     set_cell_value(ws_vgm, 'J5', date_slash)
     set_cell_value(ws_vgm, 'L5', start_time)
+    set_cell_value(ws_vgm, 'J6', vgm_completed_date)
+    set_cell_value(ws_vgm, 'L6', vgm_completed_time)
     
     for idx, h_Col in enumerate(['F9', 'G9', 'H9', 'I9']):
         if idx < len(vgm_headers):
@@ -305,7 +337,7 @@ def generate_excel(template_stream, data):
         s_row = 21 + i
         set_cell_value(ws_vgm, f'B{row}', f"='STUFFING REPORT'!B{s_row}")
         set_cell_value(ws_vgm, f'C{row}', f"='STUFFING REPORT'!F{s_row}")
-        set_cell_value(ws_vgm, f'D{row}', per_bag_gross)
+        set_cell_value(ws_vgm, f'D{row}', vgm_per_bag_gross)
         set_cell_value(ws_vgm, f'E{row}', f"=C{row}*D{row}")
         vgm_others = c.get("vgm_others", [0, 0, 0])
         set_cell_value(ws_vgm, f'F{row}', vgm_others[0] if len(vgm_others) > 0 else None)
@@ -370,7 +402,7 @@ if st.button("🚀 Generate Excel File", type="primary"):
             template_source = uploaded_template if uploaded_template else (default_template if use_default else None)
             
             if not template_source:
-                st.error("⚠️ `(40 FCL)SIR TEMPLATE.xlsx` ဖိုင်ကို Upload တင်ပေးပါ။")
+                st.error("⚠️ `(40 FCL)SIR TEMPLATE_2.xlsx` ဖိုင်ကို Upload တင်ပေးပါ။")
             else:
                 excel_bytes, job_ref = generate_excel(template_source, parsed_data)
                 

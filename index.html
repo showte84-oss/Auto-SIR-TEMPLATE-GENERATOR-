@@ -67,6 +67,8 @@
   "weighing_data": [
     {"page": 1, "bags": 192, "gross_weight": 4809.6}
   ],
+  "vgm_per_bag_gross": 25.05,
+  "vgm_completed_date": "14/10/2026",
   "vgm_other_headers": ["Seal", "SECCO", "Paper"],
   "containers": [
     {
@@ -103,7 +105,8 @@ Important Rules for Extraction:
 4. Format Date as DD/MM/YYYY.
 5. Survey fields (hole_dented, floor_type, color, type, etc.) must be in Title Case (First letter Capitalized, e.g., "No", "Wood", "Yes", "Red", "Blue", "Steel").
 6. `slings` array can have up to 10 numbers representing each sling column in Tally Form.
-7. `vgm_other_headers` must match the exact column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the corresponding weights.</textarea>
+7. `vgm_other_headers` must match the exact column headers under 'Other Packages (Kgs)' in the VGM image, and `vgm_others` must contain the corresponding weights.
+8. `vgm_per_bag_gross` and `vgm_completed_date`: Extract the average gross weight per bag and the inspection completed date EXACTLY as written in the VGM Field Report image.</textarea>
                     <button onclick="copyPrompt()" id="copyBtn" class="absolute top-3 right-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-md shadow">
                         📋 Copy Prompt
                     </button>
@@ -119,7 +122,7 @@ Important Rules for Extraction:
                 <!-- Template Status / Optional Upload -->
                 <div class="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200">
                     <label class="block text-sm font-bold text-slate-700">📄 Excel Template ဖိုင်</label>
-                    <p class="text-xs text-emerald-600 font-medium">✅ Server ရှိ `(40 FCL)SIR TEMPLATE.xlsx` ကို အလိုအလျောက် အသုံးပြုပါမည်။</p>
+                    <p class="text-xs text-emerald-600 font-medium">✅ Server ရှိ `(40 FCL)SIR TEMPLATE_2.xlsx` ကို အလိုအလျောက် အသုံးပြုပါမည်။</p>
                     <hr class="border-slate-200">
                     <label class="block text-xs text-slate-500">အကယ်၍ သီးသန့် Template တင်လိုမှသာ ရွေးပါ -</label>
                     <input type="file" id="templateUpload" accept=".xlsx" class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
@@ -127,7 +130,12 @@ Important Rules for Extraction:
 
                 <!-- JSON Textarea -->
                 <div class="md:col-span-2 space-y-2">
-                    <label class="block text-sm font-bold text-slate-700">📝 AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -</label>
+                    <div class="flex justify-between items-center">
+                        <label class="block text-sm font-bold text-slate-700">📝 AI မှ ရရှိလာသော JSON Code ကို Paste ချပါ -</label>
+                        <button onclick="clearJson()" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 font-bold px-3 py-1.5 rounded border border-red-200 transition">
+                            🗑️ Clear Data
+                        </button>
+                    </div>
                     <textarea id="jsonInput" oninput="autoFillFileName()" rows="8" placeholder='{
   "job_ref": "2108339",
   ...
@@ -174,6 +182,12 @@ Important Rules for Extraction:
             const btn = document.getElementById('copyBtn');
             btn.innerText = "✅ Copied!";
             setTimeout(() => btn.innerText = "📋 Copy Prompt", 2000);
+        }
+
+        function clearJson() {
+            document.getElementById('jsonInput').value = '';
+            document.getElementById('customFileName').value = 'SIR JOB NO';
+            userEditedName = false;
         }
 
         function showStatus(msg, isError = false) {
@@ -228,6 +242,15 @@ Important Rules for Extraction:
             }
         }
 
+        function setCellNumFmt(ws, addr, fmt) {
+            const cell = ws.getCell(addr);
+            if (cell.isMerged && cell.master) {
+                cell.master.numFmt = fmt;
+            } else {
+                cell.numFmt = fmt;
+            }
+        }
+
         async function processExcel() {
             const rawJson = document.getElementById('jsonInput').value.trim();
             if (!rawJson) {
@@ -239,7 +262,9 @@ Important Rules for Extraction:
             try {
                 let cleaned = rawJson;
                 if (cleaned.startsWith("```")) {
-                    cleaned = cleaned.split("\n").slice(1).join("\n");
+                    cleaned = cleaned.split("
+").slice(1).join("
+");
                     if (cleaned.endsWith("```")) cleaned = cleaned.slice(0, -3);
                 }
                 data = JSON.parse(cleaned.trim());
@@ -258,7 +283,7 @@ Important Rules for Extraction:
                 if (fileInput.files.length > 0) {
                     arrayBuffer = await fileInput.files[0].arrayBuffer();
                 } else {
-                    const res = await fetch('(40 FCL)SIR TEMPLATE.xlsx');
+                    const res = await fetch('(40 FCL)SIR TEMPLATE_2.xlsx');
                     if (!res.ok) throw new Error("Template ဖိုင်ကို မတွေ့ရှိပါ။ အပေါ်တွင် Upload တင်ပေးပါ။");
                     arrayBuffer = await res.arrayBuffer();
                 }
@@ -293,6 +318,11 @@ Important Rules for Extraction:
                 const vgmHeaders = data.vgm_other_headers || ["Seal", "SECCO", "Paper"];
                 const containers = data.containers || [];
                 const visibleCount = Math.max(10, containers.length);
+                
+                // VGM Specifics
+                const vgmPerBagGross = data.vgm_per_bag_gross !== undefined ? data.vgm_per_bag_gross : perBagGross;
+                const vgmCompletedDate = data.vgm_completed_date || dateSlash;
+                const vgmCompletedTime = containers.length > 0 ? (containers[containers.length - 1].complete || "") : "";
 
                 // =========================================================
                 // 1. STUFFING REPORT (MASTER PAGE)
@@ -323,6 +353,7 @@ Important Rules for Extraction:
                     setCellVal(wsStuff, `I${r}`, cleanSealNo(c.seal));
                 });
 
+                // Leave unused container rows completely blank
                 for (let r = 21 + containers.length; r <= 60; r++) {
                     ['B','C','D','E','F','G','H','I'].forEach(col => setCellVal(wsStuff, `${col}${r}`, null));
                 }
@@ -385,6 +416,10 @@ Important Rules for Extraction:
                 const wsVgm = wb.getWorksheet('VGM REPORT');
                 setCellVal(wsVgm, 'J5', dateSlash);
                 setCellVal(wsVgm, 'L5', startTime);
+                
+                // VGM specific completed date & time
+                setCellVal(wsVgm, 'J6', vgmCompletedDate);
+                setCellVal(wsVgm, 'L6', vgmCompletedTime);
 
                 ['F9','G9','H9','I9'].forEach((addr, idx) => {
                     if (idx < vgmHeaders.length) {
@@ -400,7 +435,7 @@ Important Rules for Extraction:
                     const vo = c.vgm_others || [];
                     setCellVal(wsVgm, `B${r}`, { formula: `'STUFFING REPORT'!B${sRow}` });
                     setCellVal(wsVgm, `C${r}`, { formula: `'STUFFING REPORT'!F${sRow}` });
-                    setCellVal(wsVgm, `D${r}`, perBagGross);
+                    setCellVal(wsVgm, `D${r}`, vgmPerBagGross); // VGM specific average gross weight
                     setCellVal(wsVgm, `E${r}`, { formula: `C${r}*D${r}` });
                     setCellVal(wsVgm, `F${r}`, vo[0] ?? null);
                     setCellVal(wsVgm, `G${r}`, vo[1] ?? null);
